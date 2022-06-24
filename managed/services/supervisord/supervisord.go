@@ -47,6 +47,17 @@ import (
 	"github.com/percona/pmm/version"
 )
 
+var (
+	bindAddress = "127.0.0.1"
+)
+
+func init() {
+	bindAddressFromEnv, isSet := os.LookupEnv("PMM_BIND_ADDRESS")
+	if isSet {
+		bindAddress = bindAddressFromEnv
+	}
+}
+
 const (
 	defaultClickhouseDatabase = "pmm"
 	defaultClickhouseAddr     = "127.0.0.1:9000"
@@ -435,6 +446,7 @@ func (s *Service) marshalConfig(tmpl *template.Template, settings *models.Settin
 		"ClickhouseDatabase":  clickhouseDatabase,
 		"ClickhousePoolSize":  clickhousePoolSize,
 		"ClickhouseBlockSize": clickhouseBlockSize,
+		"BindAddress":         bindAddress,
 	}
 
 	if ssoDetails != nil {
@@ -622,7 +634,7 @@ command =
 		--promscrape.config=/etc/victoriametrics-promscrape.yml
 		--retentionPeriod={{ .DataRetentionDays }}d
 		--storageDataPath=/srv/victoriametrics/data
-		--httpListenAddr=127.0.0.1:9090
+		--httpListenAddr={{ .BindAddress }}:9090
 		--search.disableCache={{ .VMDBCacheDisable }}
 		--search.maxQueryLen=1MB
 		--search.latencyOffset=5s
@@ -663,7 +675,7 @@ command =
 		--remoteWrite.url=http://127.0.0.1:9090/prometheus
 		--rule=/srv/prometheus/rules/*.yml
 		--rule=/etc/ia/rules/*.yml
-		--httpListenAddr=127.0.0.1:8880
+		--httpListenAddr={{ .BindAddress }}:8880
 {{- range $index, $param := .VMAlertFlags }}
 		{{ $param }}
 {{- end }}

@@ -11,23 +11,23 @@ env-compose-up:
 env-devcontainer:
 	docker exec -it --workdir=/root/go/src/github.com/percona/pmm pmm-managed-server .devcontainer/setup.py
 
-env-up-modular: env-compose-up-modular env-devcontainer-modular     ## Start modular devcontainer.
+env-up-ex: env-compose-up-ex env-devcontainer-ex     ## Start with pmm-managed.
 
-env-compose-up-modular:
-	docker-compose -f docker-compose.modular.yml pull
-	docker-compose -f docker-compose.modular.yml up --detach --renew-anon-volumes --remove-orphans
+env-compose-up-ex:
+	docker-compose -f docker-compose.external-managed.yml pull
+	docker-compose -f docker-compose.external-managed.yml up --detach --renew-anon-volumes --remove-orphans
 
-env-devcontainer-modular:
-	docker exec -it --workdir=/root/go/src/github.com/percona/pmm pmm-managed-server-modular .devcontainer/setup.py
+env-devcontainer-ex:
+	docker exec -it --workdir=/root/go/src/github.com/percona/pmm pmm-managed-server-ex .devcontainer/setup.py
 
 env-modular:                                ## Enter modular devcontainer.
-	docker exec -it --workdir=/root/go/src/github.com/percona/pmm pmm-managed-server-modular make $(TARGET)
+	docker exec -it --workdir=/root/go/src/github.com/percona/pmm pmm-managed-server-ex make $(TARGET)
 
-env-down-modular:                           ## Stop modular devcontainer.
-	docker-compose -f docker-compose.modular.yml down --remove-orphans
+env-down-ex:                           ## Stop modular devcontainer.
+	docker-compose -f docker-compose.external-managed.yml down --remove-orphans
 
-env-remove-modular:
-	docker-compose -f docker-compose.modular.yml down --volumes --remove-orphans
+env-remove-ex:
+	docker-compose -f docker-compose.external-managed.yml down --volumes --remove-orphans
 
 env-down:                                   ## Stop devcontainer.
 	docker-compose down --remove-orphans

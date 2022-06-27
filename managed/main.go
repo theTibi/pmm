@@ -22,6 +22,8 @@ import (
 	"database/sql"
 	_ "expvar" // register /debug/vars
 	"fmt"
+	httptransport "github.com/go-openapi/runtime/client"
+	"github.com/percona/pmm/api/alertmanager/amclient"
 	"html/template"
 	"log"
 	"net"
@@ -678,11 +680,12 @@ func main() {
 	cleaner := clean.New(db)
 	externalRules := vmalert.NewExternalRules()
 
-	vmParams, err := models.NewVictoriaMetricsParams(victoriametrics.BasePrometheusConfigPath)
+	cfg.Config.Services.VictoriaMetrics.ScrapeConfigPath = *victoriaMetricsConfigF
+	vmParams, err := models.NewVictoriaMetricsParams(cfg.Config.Services.VictoriaMetrics.BasePrometheusConfigPath)
 	if err != nil {
 		l.Panicf("cannot load victoriametrics params problem: %+v", err)
 	}
-	vmdb, err := victoriametrics.NewVictoriaMetrics(*victoriaMetricsConfigF, db, *victoriaMetricsURLF, vmParams)
+	vmdb, err := victoriametrics.NewVictoriaMetrics(db, *victoriaMetricsURLF, vmParams, cfg.Config.Services.VictoriaMetrics)
 	if err != nil {
 		l.Panicf("VictoriaMetrics service problem: %+v", err)
 	}
@@ -703,7 +706,9 @@ func main() {
 
 	connectionCheck := agents.NewConnectionChecker(agentsRegistry)
 
-	alertManager := alertmanager.New(db)
+	amRootAPI := fmt.Sprintf("%s:9093", cfg.Config.Services.Alertmanager.Host)
+	amclient.Default.SetTransport(httptransport.New(amRootAPI, "/alertmanager/api/v2", []string{"http"}))
+	alertManager := alertmanager.New(db, cfg.Config.Services.Alertmanager)
 	// Alertmanager is special due to being added to PMM with invalid /etc/alertmanager.yml.
 	// Generate configuration file before reloading with supervisord, checking status, etc.
 	alertManager.GenerateBaseConfigs()

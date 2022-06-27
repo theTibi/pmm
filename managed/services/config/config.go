@@ -19,6 +19,8 @@ package config
 
 import (
 	_ "embed"
+	"github.com/percona/pmm/managed/services/alertmanager"
+	"github.com/percona/pmm/managed/services/victoriametrics"
 	"io/ioutil"
 	"os"
 
@@ -47,8 +49,10 @@ type Service struct {
 // Config application config.
 type Config struct {
 	Services struct {
-		Platform  platform.Config         `yaml:"platform"`
-		Telemetry telemetry.ServiceConfig `yaml:"telemetry"`
+		Platform        platform.Config               `yaml:"platform"`
+		Telemetry       telemetry.ServiceConfig       `yaml:"telemetry"`
+		VictoriaMetrics victoriametrics.ServiceConfig `yaml:"victoria_metrics"`
+		Alertmanager    alertmanager.ServiceConfig    `yaml:"alertmanager"`
 	} `yaml:"services"`
 }
 
@@ -92,6 +96,9 @@ func (s *Service) Load() error {
 
 	cfg.Services.Platform.Init()
 	if err := cfg.Services.Telemetry.Init(s.l); err != nil {
+		return err
+	}
+	if err := cfg.Services.VictoriaMetrics.Init(s.l); err != nil {
 		return err
 	}
 

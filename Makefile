@@ -17,7 +17,6 @@ env-down:                                   ## Stop devcontainer.
 env-remove:
 	docker-compose down --volumes --remove-orphans
 
-
 TARGET ?= _bash
 
 env:                                        ## Run `make TARGET` in devcontainer (`make env TARGET=help`); TARGET defaults to bash.
@@ -32,10 +31,10 @@ env-compose-up-ex:
 env-devcontainer-ex:
 	docker exec -it --workdir=/root/go/src/github.com/percona/pmm pmm-managed-server-ex .devcontainer/setup.py
 
-env-ex:                                ## Enter modular devcontainer.
+env-ex:                                ## Enter devcontainer.
 	docker exec -it --workdir=/root/go/src/github.com/percona/pmm pmm-managed-server-ex make $(TARGET)
 
-env-down-ex:                           ## Stop modular devcontainer.
+env-down-ex:                           ## Stop devcontainer.
 	docker-compose -f docker-compose.external-managed.yml down --remove-orphans
 
 env-remove-ex:

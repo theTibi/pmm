@@ -397,17 +397,18 @@ func initGetSettingsSqlMock(mock sqlmock.Sqlmock, b []byte, now time.Time) {
 							"percona_sso_details"."created_at" 
 						FROM "percona_sso_details" `).
 		WillReturnRows(
-			sqlmock.NewRows([]string{
-				"pmm_managed_client_id",
-				"pmm_managed_client_secret",
-				"grafana_client_id",
-				"issuer_url",
-				"scope",
-				"access_token",
-				"organization_id",
-				"pmm_server_name",
-				"created_at",
-			}).AddRow(
+			sqlmock.NewRows(
+				[]string{
+					"pmm_managed_client_id",
+					"pmm_managed_client_secret",
+					"grafana_client_id",
+					"issuer_url",
+					"scope",
+					"access_token",
+					"organization_id",
+					"pmm_server_name",
+					"created_at",
+				}).AddRow(
 				"id",
 				"secret",
 				"client_id",

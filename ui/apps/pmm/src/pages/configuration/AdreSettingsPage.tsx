@@ -92,6 +92,14 @@ const AdreSettingsPage: FC = () => {
   const [localPromptMaxBytes, setLocalPromptMaxBytes] = useState(
     settings?.promptMaxBytes ?? settings?.prompt_max_bytes ?? 16 * 1024
   );
+  const [localSlackEnabled, setLocalSlackEnabled] = useState(
+    settings?.slackEnabled ?? settings?.slack_enabled ?? false
+  );
+  const [localSlackAutoInvestigate, setLocalSlackAutoInvestigate] = useState(
+    settings?.slackAutoInvestigate ?? settings?.slack_auto_investigate ?? false
+  );
+  const [localSlackBotToken, setLocalSlackBotToken] = useState('');
+  const [localSlackAppToken, setLocalSlackAppToken] = useState('');
 
   useEffect(() => {
     if (settings) {
@@ -137,6 +145,12 @@ const AdreSettingsPage: FC = () => {
         settings.servicenowUrl ?? settings.servicenow_url ?? 'https://perconadev.service-now.com/api/pellc/percona_connector/create'
       );
       setLocalPromptMaxBytes(settings.promptMaxBytes ?? settings.prompt_max_bytes ?? 16 * 1024);
+      setLocalSlackEnabled(settings.slackEnabled ?? settings.slack_enabled ?? false);
+      setLocalSlackAutoInvestigate(
+        settings.slackAutoInvestigate ?? settings.slack_auto_investigate ?? false
+      );
+      setLocalSlackBotToken('');
+      setLocalSlackAppToken('');
     }
   }, [settings]);
 
@@ -214,6 +228,79 @@ const AdreSettingsPage: FC = () => {
                     onChange={(e: ChangeEvent<HTMLInputElement>) => setLocalUrl(e.target.value)}
                     size="small"
                     fullWidth
+                  />
+                </Stack>
+                <Divider />
+                <Stack gap={2}>
+                  <Typography variant="subtitle1" fontWeight={600}>
+                    Slack integration
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Optional Socket Mode bot for @mentions and thread replies (runs on the PMM HA leader).
+                    {(settings?.slackConfigured ?? settings?.slack_configured) && (
+                      <Chip label="Tokens saved" size="small" color="success" sx={{ ml: 1 }} />
+                    )}
+                  </Typography>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={localSlackEnabled}
+                        onChange={(_e: SyntheticEvent, v: boolean) => {
+                          setLocalSlackEnabled(v);
+                          if (!v) {
+                            setLocalSlackAutoInvestigate(false);
+                          }
+                        }}
+                        disabled={!localEnabled || !localUrl.trim()}
+                      />
+                    }
+                    label="Enable Slack bot"
+                  />
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={localSlackAutoInvestigate}
+                        onChange={(_e: SyntheticEvent, v: boolean) => setLocalSlackAutoInvestigate(v)}
+                        disabled={!localSlackEnabled}
+                      />
+                    }
+                    label="Auto-investigate firing alerts (bot messages)"
+                  />
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    When enabled, channel messages from integrations whose text contains FIRING (and not
+                    RESOLVED) are sent to Holmes like a thread reply. Alert text usually lives in
+                    attachments—ensure your Grafana template includes FIRING.
+                  </Typography>
+                  {!localEnabled || !localUrl.trim() ? (
+                    <Typography variant="caption" color="text.secondary">
+                      Enable ADRE and set HolmesGPT URL first.
+                    </Typography>
+                  ) : null}
+                  <Typography variant="body2" color="text.secondary">
+                    Clickable Grafana links in Slack use <strong>Public address</strong> from{' '}
+                    <strong>PMM Settings → Advanced</strong> when that field is set.
+                  </Typography>
+                  <TextField
+                    label="Slack Bot User OAuth Token"
+                    type="password"
+                    placeholder="Leave empty to keep existing value"
+                    value={localSlackBotToken}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setLocalSlackBotToken(e.target.value)}
+                    size="small"
+                    fullWidth
+                    disabled={!localSlackEnabled}
+                    helperText="xoxb-… from your Slack app; leave empty to keep current"
+                  />
+                  <TextField
+                    label="Slack App-Level Token (Socket Mode)"
+                    type="password"
+                    placeholder="Leave empty to keep existing value"
+                    value={localSlackAppToken}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setLocalSlackAppToken(e.target.value)}
+                    size="small"
+                    fullWidth
+                    disabled={!localSlackEnabled}
+                    helperText="xapp-… with connections:write; leave empty to keep current"
                   />
                 </Stack>
                 <Divider />
@@ -310,7 +397,7 @@ const AdreSettingsPage: FC = () => {
                 <AdreBehaviorControlsBlock
                   variant="fast"
                   title="Fast mode — behavior controls"
-                  description="Tuning for the Fast path in the ADRE chat panel (runbooks, TodoWrite, etc.)."
+                  description="Tuning for the Fast path in the ADRE chat panel (Holmes skills / TodoWrite, etc.)."
                   value={localBehaviorFast}
                   onChange={setLocalBehaviorFast}
                   onJsonError={(msg) => enqueueSnackbar(msg, { variant: 'error' })}
@@ -435,6 +522,10 @@ const AdreSettingsPage: FC = () => {
                         servicenow_url: localServiceNowURL || undefined,
                         ...(localServiceNowAPIKey ? { servicenow_api_key: localServiceNowAPIKey } : {}),
                         ...(localServiceNowClientToken ? { servicenow_client_token: localServiceNowClientToken } : {}),
+                        slack_enabled: localSlackEnabled,
+                        slack_auto_investigate: localSlackAutoInvestigate,
+                        ...(localSlackBotToken ? { slack_bot_token: localSlackBotToken } : {}),
+                        ...(localSlackAppToken ? { slack_app_token: localSlackAppToken } : {}),
                       } as Partial<AdreSettings> & Record<string, unknown>,
                       {
                         onError: (err: unknown) => {

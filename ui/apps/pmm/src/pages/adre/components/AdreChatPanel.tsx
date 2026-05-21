@@ -21,14 +21,17 @@ import {
 import HelpOutline from '@mui/icons-material/HelpOutline';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
+import ContentCopy from '@mui/icons-material/ContentCopy';
+import Check from '@mui/icons-material/Check';
 import Send from '@mui/icons-material/Send';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
-import { FC, useState, useCallback, useEffect, useRef } from 'react';
+import { FC, useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { useAdreModels } from 'hooks/api/useAdre';
 import { useAdreChat, formatTimestamp, type ProgressStep } from 'hooks/useAdreChat';
+import { AdreConversationsSidebar } from './AdreConversationsSidebar';
 import { getMarkdownComponents } from 'components/adre/adre-chat-markdown';
 import {
   loadAdreChatUiPreferences,
@@ -38,7 +41,27 @@ import {
 
 export const AdreChatPanel: FC = () => {
   const { data: models = [], status: modelsQueryStatus } = useAdreModels();
-  const { response, reasoning, loading, progressSteps, allMessages, settings, chatError, handleSend } = useAdreChat();
+  const {
+    response,
+    reasoning,
+    loading,
+    progressSteps,
+    allMessages,
+    settings,
+    chatError,
+    handleSend,
+    conversationId,
+    conversations,
+    conversationsLoading,
+    newChat,
+    deleteConversation,
+    selectConversation,
+    searchHits,
+    searchLoading,
+    runSearch,
+    scrollToMessageId,
+    clearScrollToMessage,
+  } = useAdreChat();
   const [ask, setAsk] = useState('');
   const [model, setModel] = useState('');
   const [mode, setMode] = useState<'fast' | 'investigation'>(() => {
@@ -49,9 +72,13 @@ export const AdreChatPanel: FC = () => {
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const [expandedReasoningIdx, setExpandedReasoningIdx] = useState<number | null>(null);
   const [expandedProgressIdx, setExpandedProgressIdx] = useState<number | null>(null);
+  const [copiedMessageKey, setCopiedMessageKey] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const modelAnchorRef = useRef<HTMLDivElement>(null);
+  const copyResetTimerRef = useRef<number | null>(null);
+  /** After scrolling to a search hit, skip one "pin to bottom" so we do not jump away from the hit. */
+  const skipPinToBottomOnceRef = useRef(false);
 
   const skipServerDefaultModeRef = useRef(
     (() => {
@@ -87,24 +114,41 @@ export const AdreChatPanel: FC = () => {
     saveAdreChatUiPreferences({ model: value });
   }, []);
 
-  const lastScrollRef = useRef(0);
-  const scrollToBottom = useCallback((instant?: boolean) => {
-    const now = Date.now();
-    if (!instant && now - lastScrollRef.current < 200) return;
-    lastScrollRef.current = now;
-    messagesEndRef.current?.scrollIntoView({ behavior: instant ? 'auto' : 'smooth' });
-  }, []);
+  /** Keep view pinned to latest messages: instant jump (no smooth scroll through history on load/refresh). */
+  useLayoutEffect(() => {
+    if (scrollToMessageId != null) {
+      return;
+    }
+    if (skipPinToBottomOnceRef.current) {
+      skipPinToBottomOnceRef.current = false;
+      return;
+    }
+    const el = containerRef.current;
+    if (!el || allMessages.length === 0) {
+      return;
+    }
+    el.scrollTop = el.scrollHeight;
+  }, [
+    conversationId,
+    allMessages.length,
+    response,
+    reasoning,
+    loading,
+    scrollToMessageId,
+  ]);
 
-  useEffect(() => {
-    scrollToBottom(loading);
-  }, [allMessages.length, response, reasoning, loading, scrollToBottom]);
-
-  useEffect(() => {
-    const id = requestAnimationFrame(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
-    });
-    return () => cancelAnimationFrame(id);
-  }, []);
+  useLayoutEffect(() => {
+    if (scrollToMessageId == null || !containerRef.current) {
+      return;
+    }
+    const root = containerRef.current;
+    const el = root.querySelector(`[data-adre-msg-id="${scrollToMessageId}"]`);
+    if (el instanceof HTMLElement) {
+      el.scrollIntoView({ behavior: 'auto', block: 'center' });
+      skipPinToBottomOnceRef.current = true;
+    }
+    clearScrollToMessage();
+  }, [scrollToMessageId, allMessages.length, clearScrollToMessage]);
 
   const onSend = useCallback(async () => {
     if (!ask.trim()) return;
@@ -113,20 +157,83 @@ export const AdreChatPanel: FC = () => {
     await handleSend(userAsk, { model: model || undefined, mode });
   }, [ask, model, mode, handleSend]);
 
+  useEffect(() => () => {
+    if (copyResetTimerRef.current != null) {
+      window.clearTimeout(copyResetTimerRef.current);
+    }
+  }, []);
+
+  const copyAssistantMessage = useCallback(async (key: string, text: string) => {
+    if (!text.trim()) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedMessageKey(key);
+      if (copyResetTimerRef.current != null) {
+        window.clearTimeout(copyResetTimerRef.current);
+      }
+      copyResetTimerRef.current = window.setTimeout(() => {
+        setCopiedMessageKey((prev: string | null) => (prev === key ? null : prev));
+      }, 1600);
+    } catch {
+      setCopiedMessageKey(null);
+    }
+  }, []);
+
   const selectedModelLabel = model || 'Default';
 
   return (
-    <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        <Stack gap={1} sx={{ flex: 1, minHeight: 0 }}>
+    <Box
+      sx={{
+        flex: 1,
+        minHeight: 0,
+        width: '100%',
+        maxWidth: '100%',
+        minWidth: 0,
+        display: 'flex',
+        flexDirection: { xs: 'column', md: 'row' },
+        gap: { xs: 1, md: 0 },
+        overflow: 'hidden',
+      }}
+    >
+      <Box
+        sx={{
+          flex: {
+            xs: '0 0 auto',
+            md: '0 1 clamp(200px, 22vw, 260px)',
+          },
+          width: { md: 'clamp(200px, 22vw, 260px)' },
+          maxWidth: { xs: '100%', md: '260px' },
+          minWidth: 0,
+          maxHeight: { xs: 'min(36vh, 220px)', md: 'none' },
+          minHeight: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}
+      >
+        <AdreConversationsSidebar
+          conversationId={conversationId}
+          conversations={conversations}
+          loading={conversationsLoading}
+          searchHits={searchHits}
+          searchLoading={searchLoading}
+          onNewChat={newChat}
+          onDeleteConversation={deleteConversation}
+          onSelectConversation={selectConversation}
+          onSearch={runSearch}
+        />
+      </Box>
+      <Stack gap={1} sx={{ flex: 1, minHeight: 0, minWidth: 0, overflow: 'hidden' }}>
           {chatError ? <Alert severity="error">{chatError}</Alert> : null}
           <Box
             ref={containerRef}
             id="messages-container"
             sx={{
               flex: 1,
-              minHeight: 280,
-              maxHeight: '70vh',
-              overflow: 'auto',
+              minHeight: 0,
+              minWidth: 0,
+              overflowY: 'auto',
+              overflowX: 'hidden',
               p: 2,
               display: 'flex',
               flexDirection: 'column',
@@ -140,22 +247,40 @@ export const AdreChatPanel: FC = () => {
                 Ask a question about your database environment...
               </Typography>
             ) : (
-              <Box sx={{ maxWidth: '100%', width: '100%', alignSelf: 'center', display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {allMessages.map((msg, idx) => (
+              <Box
+                sx={{
+                  maxWidth: '100%',
+                  width: '100%',
+                  minWidth: 0,
+                  alignSelf: 'stretch',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 2,
+                }}
+              >
+              {allMessages.map((msg, idx) => {
+                const messageKey = String(msg.serverMessageId ?? `row-${idx}`);
+                const messageText = (msg.content || response || '').trim();
+                return (
                 <Box
-                  key={idx}
+                  key={messageKey}
+                  data-adre-msg-id={msg.serverMessageId != null ? String(msg.serverMessageId) : undefined}
                   sx={{
                     display: 'flex',
                     justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
                     alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                    maxWidth: '85%',
+                    maxWidth: '100%',
+                    minWidth: 0,
                   }}
                 >
                   <Box
                     sx={{
+                      maxWidth: { xs: '92%', sm: '88%', md: '85%' },
+                      minWidth: 0,
                       px: 2,
                       py: 1.5,
                       borderRadius: 2,
+                      '& img': { maxWidth: '100%', height: 'auto', display: 'block' },
                       ...(msg.role === 'user'
                         ? {
                             bgcolor: '#2d3748',
@@ -168,19 +293,33 @@ export const AdreChatPanel: FC = () => {
                           }),
                     }}
                   >
-                    <Typography
-                      variant="caption"
-                      color={msg.role === 'user' ? 'text.secondary' : 'text.secondary'}
-                      display="block"
-                      sx={{ mb: 0.5, fontSize: '0.7rem', opacity: 0.8 }}
-                    >
-                      {msg.role === 'user' ? 'You' : 'Assistant'}
-                      {msg.timestamp ? ` · ${formatTimestamp(msg.timestamp)}` : ''}
-                    </Typography>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
+                      <Typography
+                        variant="caption"
+                        color={msg.role === 'user' ? 'text.secondary' : 'text.secondary'}
+                        display="block"
+                        sx={{ fontSize: '0.7rem', opacity: 0.8 }}
+                      >
+                        {msg.role === 'user' ? 'You' : 'Assistant'}
+                        {msg.timestamp ? ` · ${formatTimestamp(msg.timestamp)}` : ''}
+                      </Typography>
+                      {msg.role === 'assistant' && messageText ? (
+                        <IconButton
+                          size="small"
+                          title={copiedMessageKey === messageKey ? 'Copied' : 'Copy response'}
+                          onClick={() => copyAssistantMessage(messageKey, messageText)}
+                          sx={{ p: 0.25, color: copiedMessageKey === messageKey ? 'success.light' : 'text.secondary' }}
+                        >
+                          {copiedMessageKey === messageKey ? <Check fontSize="inherit" /> : <ContentCopy fontSize="inherit" />}
+                        </IconButton>
+                      ) : null}
+                    </Stack>
                     {msg.role === 'user' ? (
-                      <Typography sx={{ whiteSpace: 'pre-wrap' }}>{msg.content}</Typography>
+                      <Typography sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
+                        {msg.content}
+                      </Typography>
                     ) : (
-                      <Box>
+                      <Box sx={{ minWidth: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
                         {(msg.reasoning ?? (msg.streaming && reasoning)) && (
                           <>
                             <IconButton
@@ -311,12 +450,12 @@ export const AdreChatPanel: FC = () => {
                     )}
                   </Box>
                 </Box>
-              ))}
+              )})}
               </Box>
             )}
             <div ref={messagesEndRef} />
           </Box>
-          <Stack>
+          <Stack sx={{ minWidth: 0, flexShrink: 0 }}>
             <TextField
               size="small"
               placeholder="Message ADRE..."
@@ -334,8 +473,15 @@ export const AdreChatPanel: FC = () => {
                 },
               }}
             />
-            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 0.75 }}>
-              <Stack direction="row" alignItems="center" gap={0.5}>
+            <Stack
+              direction="row"
+              justifyContent="space-between"
+              alignItems="center"
+              flexWrap="wrap"
+              gap={1}
+              sx={{ mt: 0.75, minWidth: 0, rowGap: 1 }}
+            >
+              <Stack direction="row" alignItems="center" gap={0.5} sx={{ minWidth: 0, flexWrap: 'wrap' }}>
                 <ToggleButtonGroup
                   value={mode}
                   exclusive
@@ -360,7 +506,7 @@ export const AdreChatPanel: FC = () => {
                         Chat Mode
                       </Typography>
                       <Typography variant="body2">Fast: quick answers, lighter analysis.</Typography>
-                      <Typography variant="body2">Investigation: deeper analysis with runbooks and Todo steps.</Typography>
+                      <Typography variant="body2">Investigation: deeper analysis with Holmes skills and Todo steps.</Typography>
                     </Box>
                   }
                   placement="top"
@@ -370,7 +516,7 @@ export const AdreChatPanel: FC = () => {
                   </IconButton>
                 </Tooltip>
               </Stack>
-              <Box ref={modelAnchorRef}>
+              <Box ref={modelAnchorRef} sx={{ flexShrink: 0, minWidth: 0 }}>
                 <ButtonGroup variant="contained" size="small" disableElevation>
                   <Button
                     onClick={onSend}
@@ -424,7 +570,7 @@ export const AdreChatPanel: FC = () => {
               </Box>
             </Stack>
           </Stack>
-        </Stack>
+      </Stack>
     </Box>
   );
 };

@@ -45,7 +45,8 @@ var adreBehaviorControlAllowed = map[string]struct{}{
 	"cluster_name":            {},
 	"system_prompt_additions": {},
 	"files":                   {},
-	"time_runbooks":           {},
+	"time_skills":             {},
+	"time_runbooks":           {}, // legacy; PMM maps to time_skills when calling Holmes
 }
 
 func validateAdreBehaviorControlsMap(field string, m map[string]bool) error {
@@ -163,6 +164,15 @@ type ChangeSettingsParams struct {
 	ServiceNowClientToken *string
 	// PromptMaxBytes defines max prompt size for ADRE prompts.
 	PromptMaxBytes *int
+	// AdreChatRetentionDays: automatic purge of ADRE chats (days, 0 = never). Nil = no change.
+	AdreChatRetentionDays *int
+	// EnableSlackBot enables PMM-managed Slack (Socket Mode) integration.
+	EnableSlackBot *bool
+	// SlackAutoInvestigate runs ADRE on Slack bot messages whose text contains FIRING (v0 heuristic).
+	SlackAutoInvestigate *bool
+	// SlackBotToken / SlackAppToken: empty string in params means clear when pointer non-nil (same as ServiceNow keys).
+	SlackBotToken *string
+	SlackAppToken *string
 }
 
 // SetPMMServerID should be run on start up to generate unique PMM Server ID.
@@ -362,6 +372,34 @@ func UpdateSettings(q reform.DBTX, params *ChangeSettingsParams) (*Settings, err
 	if params.PromptMaxBytes != nil {
 		settings.Adre.PromptMaxBytes = *params.PromptMaxBytes
 	}
+	if params.AdreChatRetentionDays != nil {
+		settings.Adre.AdreChatRetentionDays = pointer.ToInt(*params.AdreChatRetentionDays)
+	}
+
+	if params.EnableSlackBot != nil {
+		settings.Adre.SlackEnabled = *params.EnableSlackBot
+		if !settings.Adre.SlackEnabled {
+			settings.Adre.SlackAutoInvestigate = false
+		}
+	}
+	if params.SlackAutoInvestigate != nil {
+		settings.Adre.SlackAutoInvestigate = *params.SlackAutoInvestigate && settings.Adre.SlackEnabled
+	}
+	if params.SlackBotToken != nil {
+		settings.Adre.SlackBotToken = pointer.GetString(params.SlackBotToken)
+	}
+	if params.SlackAppToken != nil {
+		settings.Adre.SlackAppToken = pointer.GetString(params.SlackAppToken)
+	}
+
+	if params.EnableAdre != nil && !*params.EnableAdre {
+		settings.Adre.SlackEnabled = false
+		settings.Adre.SlackAutoInvestigate = false
+	}
+
+	if err := validateAdreSlackSettings(settings); err != nil {
+		return nil, NewInvalidArgumentError("%s", err.Error())
+	}
 
 	err = SaveSettings(q, settings)
 	if err != nil {
@@ -491,10 +529,31 @@ func ValidateSettings(params *ChangeSettingsParams) error {
 	if params.AdreQanInsightsPrompt != nil && len(*params.AdreQanInsightsPrompt) > AdrePromptMaxBytes {
 		return errors.Errorf("qan_insights_prompt: max %d bytes", AdrePromptMaxBytes)
 	}
+	if params.AdreChatRetentionDays != nil {
+		n := *params.AdreChatRetentionDays
+		if n < 0 || n > 36500 {
+			return errors.New("adre_chat_retention_days: must be between 0 and 36500")
+		}
+	}
 
 	return nil
 }
 
+// validateAdreSlackSettings checks Slack integration: when enabled it requires ADRE with a Holmes URL.
+func validateAdreSlackSettings(settings *Settings) error {
+	if settings.Adre.SlackAutoInvestigate && !settings.Adre.SlackEnabled {
+		return errors.New("slack_auto_investigate requires slack_enabled")
+	}
+	if !settings.Adre.SlackEnabled {
+		return nil
+	}
+	if settings.GetAdreURL() == "" {
+		return errors.New("slack_enabled requires AI Assistant enabled with a Holmes URL")
+	}
+	return nil
+}
+
+// validateAdreModelAlias caps Holmes model id length and rejects Unicode control characters in ADRE model settings fields.
 func validateAdreModelAlias(field, value string) error {
 	v := strings.TrimSpace(value)
 	if len(v) > 256 {

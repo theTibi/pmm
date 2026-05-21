@@ -1,4 +1,4 @@
-import { Box, Link, Typography } from '@mui/material';
+import { Box, Dialog, Link, Typography } from '@mui/material';
 import { FC, useState, useEffect, useRef, ReactNode, memo, createContext, useContext } from 'react';
 import { CodeBlock } from 'pages/updates/change-log/code-block';
 import { PMM_BASE_PATH, PMM_NEW_NAV_GRAFANA_PATH } from 'lib/constants';
@@ -248,6 +248,7 @@ const GrafanaPanelImageInner: FC<{
   alt: string;
   dashboardHref: string | null;
 }> = ({ src, alt, dashboardHref }) => {
+  const [isZoomOpen, setIsZoomOpen] = useState(false);
   const [shouldLoad, setShouldLoad] = useState(false);
   const [state, setState] = useState<'loading' | { status: 'success'; url: string } | { status: 'error'; detail?: string }>('loading');
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -410,30 +411,81 @@ const GrafanaPanelImageInner: FC<{
   }
 
   return (
-    <Box sx={{ my: 1 }}>
+    <Box sx={{ my: 1, width: '100%', minWidth: 0, maxWidth: '100%' }}>
       <Box
         component="img"
         src={state.url}
         alt={alt}
         loading="lazy"
-        sx={{ maxWidth: '100%', height: 'auto', borderRadius: 1, display: 'block' }}
+        onClick={() => setIsZoomOpen(true)}
+        sx={{
+          display: 'block',
+          width: '100%',
+          maxWidth: '100%',
+          height: 'auto',
+          maxHeight: 420,
+          borderRadius: 1,
+          cursor: 'zoom-in',
+          objectFit: 'contain',
+          boxSizing: 'border-box',
+        }}
       />
-      {dashboardHref && (
+      <Box sx={{ mt: 0.5, display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
         <Link
-          href={dashboardHref}
-          target="_blank"
-          rel="noopener noreferrer"
+          component="button"
+          onClick={() => setIsZoomOpen(true)}
           sx={{
             display: 'inline-block',
-            mt: 0.5,
             fontSize: '0.8125rem',
             color: 'primary.light',
             '&:hover': { color: 'primary.main' },
           }}
         >
-          Open in Grafana
+          Expand image
         </Link>
-      )}
+        {dashboardHref && (
+          <Link
+            href={dashboardHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            sx={{
+              display: 'inline-block',
+              fontSize: '0.8125rem',
+              color: 'primary.light',
+              '&:hover': { color: 'primary.main' },
+            }}
+          >
+            Open in Grafana
+          </Link>
+        )}
+      </Box>
+      <Dialog
+        open={isZoomOpen}
+        onClose={() => setIsZoomOpen(false)}
+        maxWidth={false}
+        PaperProps={{
+          sx: {
+            bgcolor: 'transparent',
+            boxShadow: 'none',
+            m: 0,
+            overflow: 'visible',
+          },
+        }}
+      >
+        <Box
+          component="img"
+          src={state.url}
+          alt={alt}
+          sx={{
+            maxWidth: '95vw',
+            maxHeight: '90vh',
+            width: 'auto',
+            height: 'auto',
+            display: 'block',
+            borderRadius: 1,
+          }}
+        />
+      </Dialog>
     </Box>
   );
 };
@@ -447,6 +499,13 @@ export function getMarkdownComponents(content: string) {
   );
 
   return {
+    // Default <p> cannot contain block-level panel UI; browsers break the DOM and width
+    // constraints fail, so wide panel images overflow the chat bubble.
+    p: ({ children }: { children?: ReactNode }) => (
+      <Box component="div" sx={{ mb: 1.25, minWidth: 0, maxWidth: '100%' }}>
+        {children}
+      </Box>
+    ),
     code: ({
       inline,
       children,
@@ -542,7 +601,14 @@ export function getMarkdownComponents(content: string) {
         );
       }
 
-      return <Box component="img" src={src ? toSameOriginUrl(src) : undefined} alt={alt ?? ''} />;
+      return (
+        <Box
+          component="img"
+          src={src ? toSameOriginUrl(src) : undefined}
+          alt={alt ?? ''}
+          sx={{ display: 'block', maxWidth: '100%', height: 'auto' }}
+        />
+      );
     },
   };
 }

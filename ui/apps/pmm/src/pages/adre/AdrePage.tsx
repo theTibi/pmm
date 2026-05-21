@@ -132,19 +132,24 @@ const AdrePage: FC = () => {
   }
 
   return (
-    <Page title="">
+    <Page title="" fullWidth footer={null}>
       <Box
         sx={{
           bgcolor: '#212121',
           color: 'text.primary',
           flex: 1,
+          width: '100%',
+          maxWidth: '100%',
+          height: '100%',
+          maxHeight: '100%',
+          minWidth: 0,
           minHeight: 0,
+          boxSizing: 'border-box',
           display: 'flex',
           flexDirection: 'column',
-          m: -2,
-          mt: -3,
-          mb: -3,
-          p: 3,
+          py: 0.5,
+          borderRadius: 1,
+          overflow: 'hidden',
           '& .MuiCard-root': {
             bgcolor: '#212121',
             borderColor: 'rgba(255,255,255,0.12)',
@@ -160,15 +165,19 @@ const AdrePage: FC = () => {
           sx={{
             flex: 1,
             minHeight: 0,
+            minWidth: 0,
+            width: '100%',
+            maxWidth: '100%',
             alignItems: 'stretch',
             overflow: 'hidden',
           }}
         >
           <Box
             sx={{
-              flex: alerts.length > 0 ? 2 : 1,
+              flex: '1 1 0%',
               minWidth: 0,
               minHeight: 0,
+              maxWidth: '100%',
               display: 'flex',
               flexDirection: 'column',
               overflow: 'hidden',
@@ -179,7 +188,9 @@ const AdrePage: FC = () => {
           {alerts.length > 0 && (
             <Box
               sx={{
-                flex: '0 0 260px',
+                flex: { xs: '0 0 auto', md: '0 0 260px' },
+                width: { xs: '100%', md: 260 },
+                maxWidth: '100%',
                 minWidth: 0,
                 minHeight: 0,
                 maxHeight: '100%',

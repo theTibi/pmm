@@ -18,7 +18,7 @@ For **operators** (URLs, APIs, Holmes configuration, Grafana panel rendering): s
 | ---- | ------- |
 | **ADRE** | Autonomous Database Reliability Engineer — PMM’s name for the AI assistant integration (including **ADRE Chat** in the UI). |
 | **HolmesGPT** | The analysis backend PMM calls for many AI operations. Your organisation runs HolmesGPT where it can reach PMM APIs and (if configured) other data sources. |
-| **Fast vs Investigation** | In **ADRE Chat**, **Fast** favours quick answers with lighter runbook/TodoWrite usage by default; **Investigation** uses the full investigation-oriented controls. Admins tune Holmes **`behavior_controls`** and prompts under **AI Assistant** settings. |
+| **Fast vs Investigation** | In **ADRE Chat**, **Fast** favours quick answers with lighter Holmes skills / TodoWrite usage by default; **Investigation** uses the full investigation-oriented controls. Admins tune Holmes **`behavior_controls`** and prompts under **AI Assistant** settings. |
 | **Investigation** | A persisted incident page: title, status, **blocks** (findings, markdown, panels, query results, etc.), comments, and messages. |
 | **Block** | A typed piece of content inside an investigation report (for example summary, finding, or slow-query analysis). |
 | **QAN AI Insights** | AI-generated optimisation guidance for QAN data, with server-side caching per query and service. |
@@ -43,5 +43,6 @@ Source files live in the PMM repository (not all are part of the published MkDoc
 - Architecture decisions: [ADR-001 — PMM AI Investigations](../../adr/0001-pmm-ai-investigations.md), [ADR-002 — Data model and API](../../adr/0002-investigations-data-model-and-api.md)
 
 - [ADRE Chat](adre-chat.md)
+- [ADRE Slack bot](adre-slack-bot.md) (Socket Mode inside PMM Server)
 - [Investigations](investigations.md)
 - [QAN AI Insights](qan-ai-insights.md)

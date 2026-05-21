@@ -101,6 +101,7 @@ import (
 	"github.com/percona/pmm/managed/services/realtimeanalytics"
 	"github.com/percona/pmm/managed/services/scheduler"
 	"github.com/percona/pmm/managed/services/server"
+	"github.com/percona/pmm/managed/services/slackbot"
 	"github.com/percona/pmm/managed/services/supervisord"
 	"github.com/percona/pmm/managed/services/telemetry"
 	"github.com/percona/pmm/managed/services/telemetry/uievents"
@@ -202,8 +203,8 @@ func addLogsHandler(mux *http.ServeMux, logs *server.Logs) {
 	})
 }
 
-func addAdreHandlers(mux *http.ServeMux, db reform.DBTX, grafanaAlertsFetch adre.GrafanaAlertsFetcher) {
-	h := adre.NewHandlers(db, grafanaAlertsFetch)
+func addAdreHandlers(mux *http.ServeMux, db *reform.DB, grafanaClient adre.GrafanaAuth) {
+	h := adre.NewHandlers(db, grafanaClient)
 	mux.HandleFunc("/v1/adre/settings", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
@@ -234,6 +235,18 @@ func addAdreHandlers(mux *http.ServeMux, db reform.DBTX, grafanaAlertsFetch adre
 		}
 		h.PostQanInsightsServiceNow(w, r)
 	})
+	mux.HandleFunc("/v1/adre/conversations", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			h.ListConversations(w, r)
+		case http.MethodPost:
+			h.CreateConversation(w, r)
+		default:
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		}
+	})
+	mux.HandleFunc("/v1/adre/conversations/", h.ServeConversationSubroutes)
+	mux.HandleFunc("/v1/adre/messages/search", h.SearchMessages)
 }
 
 func addInvestigationsHandlers(mux *http.ServeMux, db *reform.DB) {
@@ -469,7 +482,10 @@ func runHTTP1Server(ctx context.Context, deps *http1ServerDeps) {
 	mux := http.NewServeMux()
 	addLogsHandler(mux, deps.logs)
 	addAdreHandlers(mux, deps.db, deps.grafanaClient)
-	mux.Handle("/v1/grafana/render", grafana.NewRenderHandler(deps.grafanaClient))
+	go adre.RunAdreChatRetentionLoop(ctx, deps.db, logrus.WithField("component", "adre-retention"), 24*time.Hour)
+	mux.Handle("/v1/grafana/render", grafana.NewLegacyGETRenderGoneHandler())
+	mux.Handle("/v1/grafana/render/resolve", grafana.NewResolveHandler(deps.grafanaClient))
+	mux.Handle("/v1/grafana/render/blob/", grafana.NewBlobHandler())
 	addInvestigationsHandlers(mux, deps.db)
 	mux.Handle("/auth_request", deps.authServer)
 	mux.Handle("/", proxyMux)
@@ -1253,6 +1269,11 @@ func main() { //nolint:maintidx,cyclop
 	haService.AddLeaderService(ha.NewContextService("cleaner", func(ctx context.Context) error {
 		cleaner.Run(ctx, cleanInterval, cleanOlderThan)
 		return nil
+	}))
+
+	adreSlackL := logrus.WithField("component", "adre-slack")
+	haService.AddLeaderService(ha.NewContextService("adre-slack", func(ctx context.Context) error {
+		return slackbot.Run(ctx, db, adreSlackL)
 	}))
 
 	wg.Add(1)

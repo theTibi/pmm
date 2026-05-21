@@ -146,16 +146,17 @@ type ChatRequest struct {
 	FrontendTools          []interface{} `json:"frontend_tools,omitempty"`
 	FrontendToolResults    []interface{} `json:"frontend_tool_results,omitempty"`
 	ToolDecisions          []interface{} `json:"tool_decisions,omitempty"`
-	// BehaviorControls overrides Holmes prompt components (e.g. {"time_runbooks": false, "todowrite_instructions": false}). Keys must match holmes/core/prompt.py PromptComponent values. Optional.
+	// BehaviorControls overrides Holmes prompt components (e.g. {"time_skills": false, "todowrite_instructions": false}). Keys must match holmes/core/prompt.py PromptComponent values. Optional.
 	BehaviorControls map[string]bool `json:"behavior_controls,omitempty"`
 }
 
 // ChatResponse is the response from POST /api/chat.
 type ChatResponse struct {
-	Analysis            string        `json:"analysis"`
-	ConversationHistory []interface{} `json:"conversation_history,omitempty"`
-	ToolCalls           []interface{} `json:"tool_calls,omitempty"`
-	FollowUpActions     []interface{} `json:"follow_up_actions,omitempty"`
+	Analysis            string          `json:"analysis"`
+	ConversationHistory []interface{}   `json:"conversation_history,omitempty"`
+	ToolCalls           []interface{}   `json:"tool_calls,omitempty"`
+	FollowUpActions     []interface{}   `json:"follow_up_actions,omitempty"`
+	Metadata            json.RawMessage `json:"metadata,omitempty"`
 }
 
 // Chat sends a chat request to HolmesGPT (non-streaming).

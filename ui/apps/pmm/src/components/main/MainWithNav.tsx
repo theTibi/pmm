@@ -40,7 +40,7 @@ export const MainWithNav = () => {
       <DelayedRender delay={SHOW_UPDATE_INFO_DELAY_MS}>
         <UpdateModal />
       </DelayedRender>
-      <AdreChatWidget />
+      {!isFullScreen && <AdreChatWidget />}
     </Stack>
   );
 };

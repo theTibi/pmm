@@ -105,11 +105,17 @@ type Settings struct {
 
 	// Adre (Autonomous Database Reliability Engineer) / HolmesGPT integration.
 	Adre struct {
-		Enabled              *bool  `json:"enabled"`
-		URL                  string `json:"url"`
-		ChatPrompt           string `json:"chat_prompt"`
-		InvestigationPrompt  string `json:"investigation_prompt"`
-		DefaultChatMode      string `json:"default_chat_mode"`
+		Enabled             *bool  `json:"enabled"`
+		URL                 string `json:"url"`
+		ChatPrompt          string `json:"chat_prompt"`
+		InvestigationPrompt string `json:"investigation_prompt"`
+		DefaultChatMode     string `json:"default_chat_mode"`
+		// ChatBackend: "holmesgpt" = direct Holmes Agent; "holmes_agent" = PMM Agent (Holmes with replace_system_prompt).
+		ChatBackend string `json:"chat_backend"`
+		// ChatHistoryLength is the max number of messages to send to the PMM Agent (trimmed from conversation_history). Used when ChatBackend is holmes_agent.
+		ChatHistoryLength int `json:"chat_history_length"`
+		// AgentPrompt is the system prompt for the PMM Agent when ChatBackend is holmes_agent. Empty = use built-in default.
+		AgentPrompt string `json:"agent_prompt"`
 	} `json:"adre"`
 
 	Alerting struct {
@@ -297,5 +303,11 @@ func (s *Settings) fillDefaults() {
 	}
 	if s.Adre.DefaultChatMode == "" {
 		s.Adre.DefaultChatMode = "chat"
+	}
+	if s.Adre.ChatBackend == "" {
+		s.Adre.ChatBackend = "holmesgpt"
+	}
+	if s.Adre.ChatHistoryLength <= 0 {
+		s.Adre.ChatHistoryLength = 20
 	}
 }

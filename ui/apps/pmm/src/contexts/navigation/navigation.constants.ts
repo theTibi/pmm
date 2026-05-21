@@ -403,6 +403,14 @@ export const NAV_ADRE: NavItem = {
   url: `${PMM_NEW_NAV_PATH}/adre`,
 };
 
+export const NAV_INVESTIGATIONS: NavItem = {
+  id: 'investigations',
+  icon: 'intelligence',
+  text: 'Investigations',
+  url: `${PMM_NEW_NAV_PATH}/investigations`,
+  matches: [`${PMM_NEW_NAV_PATH}/investigations`, `${PMM_NEW_NAV_PATH}/investigations/*`],
+};
+
 //
 // All Dashbaords
 //
@@ -632,6 +640,7 @@ export const NAV_CONFIGURATION: NavItem = {
     `${PMM_NEW_NAV_GRAFANA_PATH}/admin/plugins`,
     `${PMM_NEW_NAV_GRAFANA_PATH}/datasources/correlations`,
     `${PMM_NEW_NAV_GRAFANA_PATH}/admin/extensions`,
+    `${PMM_NEW_NAV_PATH}/configuration/ai-assistant`,
   ],
   children: [
     {
@@ -644,6 +653,11 @@ export const NAV_CONFIGURATION: NavItem = {
       id: 'updates',
       text: 'Updates',
       url: `${PMM_NEW_NAV_PATH}/updates`,
+    },
+    {
+      id: 'ai-assistant',
+      text: 'AI Assistant',
+      url: `${PMM_NEW_NAV_PATH}/configuration/ai-assistant`,
     },
     {
       id: 'org-management',

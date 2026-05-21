@@ -101,6 +101,10 @@ func (h *Handlers) GetSettings(w http.ResponseWriter, r *http.Request) {
 	if investigationPromptDisplay == "" {
 		investigationPromptDisplay = DefaultInvestigationPrompt
 	}
+	agentPromptDisplay := settings.Adre.AgentPrompt
+	if agentPromptDisplay == "" {
+		agentPromptDisplay = DefaultPMMAgentPrompt
+	}
 	resp := struct {
 		Enabled                    bool   `json:"enabled"`
 		URL                        string `json:"url"`
@@ -109,6 +113,10 @@ func (h *Handlers) GetSettings(w http.ResponseWriter, r *http.Request) {
 		ChatPromptDisplay          string `json:"chat_prompt_display"`
 		InvestigationPromptDisplay string `json:"investigation_prompt_display"`
 		DefaultChatMode            string `json:"default_chat_mode"`
+		ChatBackend                string `json:"chat_backend"`
+		ChatHistoryLength          int    `json:"chat_history_length"`
+		AgentPrompt                string `json:"agent_prompt"`
+		AgentPromptDisplay         string `json:"agent_prompt_display"`
 	}{
 		Enabled:                    settings.IsAdreEnabled(),
 		URL:                        settings.GetAdreURL(),
@@ -117,9 +125,19 @@ func (h *Handlers) GetSettings(w http.ResponseWriter, r *http.Request) {
 		ChatPromptDisplay:          chatPromptDisplay,
 		InvestigationPromptDisplay: investigationPromptDisplay,
 		DefaultChatMode:            settings.Adre.DefaultChatMode,
+		ChatBackend:                settings.Adre.ChatBackend,
+		ChatHistoryLength:         settings.Adre.ChatHistoryLength,
+		AgentPrompt:                settings.Adre.AgentPrompt,
+		AgentPromptDisplay:         agentPromptDisplay,
 	}
 	if resp.DefaultChatMode == "" {
 		resp.DefaultChatMode = "chat"
+	}
+	if resp.ChatBackend == "" {
+		resp.ChatBackend = "holmesgpt"
+	}
+	if resp.ChatHistoryLength <= 0 {
+		resp.ChatHistoryLength = 20
 	}
 	body, err := json.Marshal(resp)
 	if err != nil {
@@ -146,15 +164,19 @@ func (h *Handlers) PostSettings(w http.ResponseWriter, r *http.Request) {
 		ChatPrompt          *string `json:"chat_prompt"`
 		InvestigationPrompt *string `json:"investigation_prompt"`
 		DefaultChatMode     *string `json:"default_chat_mode"`
+		ChatBackend         *string `json:"chat_backend"`
+		ChatHistoryLength   *int    `json:"chat_history_length"`
+		AgentPrompt         *string `json:"agent_prompt"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSONError(w, http.StatusBadRequest, "Invalid JSON: "+err.Error())
 		return
 	}
 	hasChange := body.Enabled != nil || body.URL != nil || body.ChatPrompt != nil ||
-		body.InvestigationPrompt != nil || body.DefaultChatMode != nil
+		body.InvestigationPrompt != nil || body.DefaultChatMode != nil ||
+		body.ChatBackend != nil || body.ChatHistoryLength != nil || body.AgentPrompt != nil
 	if !hasChange {
-		writeJSONError(w, http.StatusBadRequest, "No changes provided (set enabled, url, chat_prompt, investigation_prompt, and/or default_chat_mode)")
+		writeJSONError(w, http.StatusBadRequest, "No changes provided (set enabled, url, chat_prompt, investigation_prompt, default_chat_mode, chat_backend, chat_history_length, and/or agent_prompt)")
 		return
 	}
 	if body.URL != nil {
@@ -188,12 +210,34 @@ func (h *Handlers) PostSettings(w http.ResponseWriter, r *http.Request) {
 		}
 		body.DefaultChatMode = &mode
 	}
+	if body.ChatBackend != nil {
+		cb := strings.TrimSpace(*body.ChatBackend)
+		if cb != "holmesgpt" && cb != "holmes_agent" {
+			writeJSONError(w, http.StatusBadRequest, "chat_backend: must be \"holmesgpt\" or \"holmes_agent\"")
+			return
+		}
+		body.ChatBackend = &cb
+	}
+	if body.ChatHistoryLength != nil {
+		n := *body.ChatHistoryLength
+		if n < 5 || n > 100 {
+			writeJSONError(w, http.StatusBadRequest, "chat_history_length: must be between 5 and 100")
+			return
+		}
+	}
+	if body.AgentPrompt != nil && len(*body.AgentPrompt) > models.AdrePromptMaxBytes {
+		writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("agent_prompt: max %d bytes", models.AdrePromptMaxBytes))
+		return
+	}
 	params := &models.ChangeSettingsParams{
-		EnableAdre:             body.Enabled,
-		AdreURL:                body.URL,
-		AdreChatPrompt:         body.ChatPrompt,
+		EnableAdre:              body.Enabled,
+		AdreURL:                 body.URL,
+		AdreChatPrompt:          body.ChatPrompt,
 		AdreInvestigationPrompt: body.InvestigationPrompt,
-		AdreDefaultChatMode:    body.DefaultChatMode,
+		AdreDefaultChatMode:     body.DefaultChatMode,
+		ChatBackend:             body.ChatBackend,
+		ChatHistoryLength:       body.ChatHistoryLength,
+		AgentPrompt:             body.AgentPrompt,
 	}
 	if _, err := models.UpdateSettings(h.db, params); err != nil {
 		h.l.Errorf("UpdateSettings: %v", err)
@@ -209,6 +253,10 @@ func (h *Handlers) PostSettings(w http.ResponseWriter, r *http.Request) {
 	if investigationPromptDisplay == "" {
 		investigationPromptDisplay = DefaultInvestigationPrompt
 	}
+	agentPromptDisplayPost := settings.Adre.AgentPrompt
+	if agentPromptDisplayPost == "" {
+		agentPromptDisplayPost = DefaultPMMAgentPrompt
+	}
 	resp := struct {
 		Enabled                    bool   `json:"enabled"`
 		URL                        string `json:"url"`
@@ -217,6 +265,10 @@ func (h *Handlers) PostSettings(w http.ResponseWriter, r *http.Request) {
 		ChatPromptDisplay          string `json:"chat_prompt_display"`
 		InvestigationPromptDisplay string `json:"investigation_prompt_display"`
 		DefaultChatMode            string `json:"default_chat_mode"`
+		ChatBackend                string `json:"chat_backend"`
+		ChatHistoryLength          int    `json:"chat_history_length"`
+		AgentPrompt                string `json:"agent_prompt"`
+		AgentPromptDisplay         string `json:"agent_prompt_display"`
 	}{
 		Enabled:                    settings.IsAdreEnabled(),
 		URL:                        settings.GetAdreURL(),
@@ -225,9 +277,19 @@ func (h *Handlers) PostSettings(w http.ResponseWriter, r *http.Request) {
 		ChatPromptDisplay:          chatPromptDisplay,
 		InvestigationPromptDisplay: investigationPromptDisplay,
 		DefaultChatMode:            settings.Adre.DefaultChatMode,
+		ChatBackend:                settings.Adre.ChatBackend,
+		ChatHistoryLength:         settings.Adre.ChatHistoryLength,
+		AgentPrompt:                settings.Adre.AgentPrompt,
+		AgentPromptDisplay:         agentPromptDisplayPost,
 	}
 	if resp.DefaultChatMode == "" {
 		resp.DefaultChatMode = "chat"
+	}
+	if resp.ChatBackend == "" {
+		resp.ChatBackend = "holmesgpt"
+	}
+	if resp.ChatHistoryLength <= 0 {
+		resp.ChatHistoryLength = 20
 	}
 	respBody, err := json.Marshal(resp)
 	if err != nil {
@@ -276,6 +338,14 @@ type chatRequestBody struct {
 	Mode *string `json:"mode,omitempty"`
 }
 
+// resolvePMMAgentPrompt returns the system prompt for the PMM Agent. Empty settings value uses built-in default.
+func resolvePMMAgentPrompt(settings *models.Settings) string {
+	if settings.Adre.AgentPrompt != "" {
+		return settings.Adre.AgentPrompt
+	}
+	return DefaultPMMAgentPrompt
+}
+
 // resolveChatPrompt returns the additional_system_prompt for chat from settings and mode. Empty settings value uses built-in default.
 func resolveChatPrompt(settings *models.Settings, mode string) string {
 	if mode == "investigation" {
@@ -291,13 +361,32 @@ func resolveChatPrompt(settings *models.Settings, mode string) string {
 }
 
 // PostChat handles POST /v1/adre/chat. If body has "stream": true, streams the response.
+// Only holmes_agent (PMM Agent) and holmesgpt (Holmes Agent direct) are supported.
 func (h *Handlers) PostChat(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	settings, ok := h.checkAdreEnabled(w)
-	if !ok {
+	settings, err := models.GetSettings(h.db)
+	if err != nil {
+		h.l.Errorf("GetSettings: %v", err)
+		writeJSONError(w, http.StatusInternalServerError, "Failed to get settings")
+		return
+	}
+	if !settings.IsAdreEnabled() {
+		writeJSONError(w, http.StatusBadRequest, adreDisabledMsg)
+		return
+	}
+	cb := settings.Adre.ChatBackend
+	if cb == "" {
+		cb = "holmesgpt"
+	}
+	if cb != "holmes_agent" && cb != "holmesgpt" {
+		writeJSONError(w, http.StatusBadRequest, "Chat backend must be PMM Agent (holmes_agent) or Holmes Agent (holmesgpt). Configure it in AI Assistant Settings.")
+		return
+	}
+	if settings.GetAdreURL() == "" {
+		writeJSONError(w, http.StatusBadRequest, adreURLNotSetMsg)
 		return
 	}
 	var body chatRequestBody
@@ -305,6 +394,19 @@ func (h *Handlers) PostChat(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, "Invalid JSON: "+err.Error())
 		return
 	}
+	if cb == "holmes_agent" {
+		if strings.TrimSpace(body.Ask) == "" {
+			writeJSONError(w, http.StatusBadRequest, "ask is required")
+			return
+		}
+		if body.Stream {
+			RunPMMAgentChatStream(w, r, h.db, h.l, settings, body.Ask, body.ConversationHistory, h.streamTimeout)
+			return
+		}
+		writeJSONError(w, http.StatusBadRequest, "PMM Agent chat requires stream: true")
+		return
+	}
+	// holmesgpt: direct Holmes chat
 	mode := "chat"
 	if body.Mode != nil && (*body.Mode == "chat" || *body.Mode == "investigation") {
 		mode = *body.Mode
@@ -438,11 +540,15 @@ func (h *Handlers) PostInvestigate(w http.ResponseWriter, r *http.Request) {
 	if investigationPrompt == "" {
 		investigationPrompt = DefaultInvestigationPrompt
 	}
+	subject := body.Subject
+	if subject == nil {
+		subject = map[string]interface{}{} // HolmesGPT InvestigateRequest requires subject
+	}
 	req := &InvestigateRequest{
 		Source:                 body.Source,
 		Title:                  body.Title,
 		Description:            body.Description,
-		Subject:                body.Subject,
+		Subject:                subject,
 		Context:                body.Context,
 		Model:                  body.Model,
 		AdditionalSystemPrompt: investigationPrompt,

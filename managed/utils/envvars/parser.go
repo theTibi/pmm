@@ -242,6 +242,10 @@ func ParseEnvVars(envs []string) (*models.ChangeSettingsParams, []error, []strin
 			envSettings.AdreURL = pointer.ToString(trimmed)
 			envSettings.EnableAdre = pointer.ToBool(true)
 
+		case pkgenv.OrchestratorLLMProvider, pkgenv.OrchestratorLLMURL, pkgenv.OrchestratorLLMModel:
+			// Orchestrator (Ollama) settings removed; ignore these env vars.
+			continue
+
 		case "PMM_INSTALL_METHOD", "PMM_DISTRIBUTION_METHOD":
 			continue
 

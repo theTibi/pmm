@@ -12,150 +12,24 @@ import {
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import Send from '@mui/icons-material/Send';
-import { FC, useState, useCallback, useEffect, useRef, ReactNode } from 'react';
+import { FC, useState, useCallback, useEffect, useRef } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { useAdreModels, useAdreSettings } from 'hooks/api/useAdre';
-import { adreChatStream, type AdreStreamProgressEvent } from 'api/adre';
-import { useSnackbar } from 'notistack';
-import { CodeBlock } from 'pages/updates/change-log/code-block';
-
-const STORAGE_KEY = 'pmm-adre-chat';
-const CHAT_HISTORY_WINDOW_MS = 24 * 60 * 60 * 1000;
-const CHAT_HISTORY_MAX_MESSAGES = 300;
-
-export type ProgressStep = { id: string; toolName: string; description?: string; status: 'running' | 'done' };
-
-function isValidProgressStep(s: unknown): s is ProgressStep {
-  return (
-    typeof s === 'object' &&
-    s != null &&
-    typeof (s as ProgressStep).id === 'string' &&
-    typeof (s as ProgressStep).toolName === 'string' &&
-    ((s as ProgressStep).description === undefined || typeof (s as ProgressStep).description === 'string') &&
-    ((s as ProgressStep).status === 'running' || (s as ProgressStep).status === 'done')
-  );
-}
-
-interface ChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp?: number;
-  reasoning?: string;
-  progressSteps?: ProgressStep[];
-}
-
-function loadFromStorage(): { response: string; reasoning: string; history: ChatMessage[] } {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as {
-        response?: string;
-        reasoning?: string;
-        history?: unknown[];
-      };
-      const rawHistory = Array.isArray(parsed.history)
-        ? (parsed.history as unknown[]).filter((m): m is ChatMessage => {
-            if (!m || typeof m !== 'object' || typeof (m as ChatMessage).content !== 'string') return false;
-            const role = (m as ChatMessage).role;
-            if (role !== 'user' && role !== 'assistant') return false;
-            const steps = (m as ChatMessage).progressSteps;
-            if (steps !== undefined && (!Array.isArray(steps) || !steps.every(isValidProgressStep))) return false;
-            return true;
-          })
-        : [];
-      const normalizedHistory = rawHistory.map((m) => {
-        if (m.progressSteps?.length) {
-          const steps = m.progressSteps.filter(isValidProgressStep);
-          return { ...m, progressSteps: steps.length > 0 ? steps : undefined };
-        }
-        return m;
-      });
-      const history = getWindowedHistory(normalizedHistory);
-      return {
-        response: typeof parsed.response === 'string' ? parsed.response : '',
-        reasoning: typeof parsed.reasoning === 'string' ? parsed.reasoning : '',
-        history,
-      };
-    }
-  } catch {
-    // ignore
-  }
-  return { response: '', reasoning: '', history: [] };
-}
-
-function saveToStorage(response: string, reasoning: string, history: ChatMessage[]) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ response, reasoning, history }));
-  } catch {
-    // ignore
-  }
-}
-
-/** Persists the assistant message to localStorage when stream completes. Runs outside React state so it works even if the component unmounts during streaming. */
-function persistAssistantToHistory(
-  userContent: string,
-  assistantContent: string,
-  assistantReasoning: string,
-  progressSteps: ProgressStep[] = []
-): void {
-  const { history } = loadFromStorage();
-  const last = history[history.length - 1];
-  const hasUserMsg = last?.role === 'user' && last?.content === userContent;
-  const assistantMsg: ChatMessage = {
-    role: 'assistant',
-    content: assistantContent,
-    timestamp: Date.now(),
-    reasoning: assistantReasoning || undefined,
-    ...(progressSteps.length > 0 && { progressSteps }),
-  };
-  const toAppend: ChatMessage[] = hasUserMsg
-    ? [assistantMsg]
-    : [{ role: 'user', content: userContent, timestamp: Date.now() }, assistantMsg];
-  const updatedHistory = [...history, ...toAppend];
-  const windowed = getWindowedHistory(updatedHistory);
-  saveToStorage('', '', windowed);
-}
-
-/** Returns history limited to last 24h from the newest message, capped at CHAT_HISTORY_MAX_MESSAGES. */
-function getWindowedHistory(history: ChatMessage[]): ChatMessage[] {
-  if (history.length === 0) return [];
-  const newestTs = Math.max(...history.map((m) => m.timestamp ?? 0));
-  const cutoff = newestTs - CHAT_HISTORY_WINDOW_MS;
-  const windowed = history.filter((m) => (m.timestamp ?? 0) >= cutoff);
-  if (windowed.length <= CHAT_HISTORY_MAX_MESSAGES) return windowed;
-  return windowed.slice(-CHAT_HISTORY_MAX_MESSAGES);
-}
-
-function formatTimestamp(ts: number): string {
-  const d = new Date(ts);
-  const now = Date.now();
-  const diff = now - ts;
-  if (diff < 60_000) return 'Just now';
-  if (diff < 3600_000) return `${Math.floor(diff / 60_000)}m ago`;
-  if (diff < 86400_000) return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-}
+import { useAdreModels } from 'hooks/api/useAdre';
+import { useAdreChat, formatTimestamp, type ProgressStep } from 'hooks/useAdreChat';
+import { getMarkdownComponents } from 'components/adre/adre-chat-markdown';
 
 export const AdreChatPanel: FC = () => {
   const { data: models = [] } = useAdreModels();
-  const { data: settings } = useAdreSettings();
-  const { enqueueSnackbar } = useSnackbar();
+  const { response, reasoning, loading, progressSteps, allMessages, settings, handleSend } = useAdreChat();
   const [ask, setAsk] = useState('');
   const [model, setModel] = useState('');
   const [mode, setMode] = useState<'chat' | 'investigation'>('chat');
-  const [response, setResponse] = useState(() => loadFromStorage().response);
-  const [reasoning, setReasoning] = useState(() => loadFromStorage().reasoning);
-  const [loading, setLoading] = useState(false);
-  const [progressSteps, setProgressSteps] = useState<Array<{ id: string; toolName: string; description?: string; status: 'running' | 'done' }>>([]);
-  const [history, setHistory] = useState<ChatMessage[]>(() => loadFromStorage().history);
   const [expandedReasoningIdx, setExpandedReasoningIdx] = useState<number | null>(null);
   const [expandedProgressIdx, setExpandedProgressIdx] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const streamStartTimeRef = useRef<number | null>(null);
-  const progressStepsRef = useRef<ProgressStep[]>([]);
 
   const defaultModeSyncedRef = useRef(false);
   useEffect(() => {
@@ -165,17 +39,17 @@ export const AdreChatPanel: FC = () => {
     }
   }, [settings?.defaultChatMode]);
 
-  useEffect(() => {
-    saveToStorage(response, reasoning, history);
-  }, [response, reasoning, history]);
-
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const lastScrollRef = useRef(0);
+  const scrollToBottom = useCallback((instant?: boolean) => {
+    const now = Date.now();
+    if (!instant && now - lastScrollRef.current < 200) return;
+    lastScrollRef.current = now;
+    messagesEndRef.current?.scrollIntoView({ behavior: instant ? 'auto' : 'smooth' });
   }, []);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [history.length, response, reasoning, scrollToBottom]);
+    scrollToBottom(loading);
+  }, [allMessages.length, response, reasoning, loading, scrollToBottom]);
 
   useEffect(() => {
     const id = requestAnimationFrame(() => {
@@ -184,91 +58,12 @@ export const AdreChatPanel: FC = () => {
     return () => cancelAnimationFrame(id);
   }, []);
 
-  const handleSend = useCallback(async () => {
+  const onSend = useCallback(async () => {
     if (!ask.trim()) return;
-    const userAsk = ask.trim();
-    setLoading(true);
-    setResponse('');
-    setReasoning('');
-    setProgressSteps([]);
-    progressStepsRef.current = [];
-    streamStartTimeRef.current = Date.now();
+    const userAsk = ask;
     setAsk('');
-    const userTimestamp = Date.now();
-    setHistory((prev: ChatMessage[]) => [...prev, { role: 'user', content: userAsk, timestamp: userTimestamp }]);
-    try {
-      const windowed = getWindowedHistory(history);
-      const req = {
-        ask: userAsk,
-        conversation_history: [
-          { role: 'system', content: 'You are a helpful AI ops assistant for Percona Monitoring and Management (PMM).' },
-          ...windowed.map((m: ChatMessage) => ({ role: m.role, content: m.content })),
-          { role: 'user', content: userAsk },
-        ],
-        model: model || undefined,
-        stream: true,
-        mode,
-      };
-      let fullResponse = '';
-      let fullReasoning = '';
-      const handleProgress = (event: AdreStreamProgressEvent) => {
-        if (event.type === 'start_tool') {
-          const next = [...progressStepsRef.current, { id: event.id, toolName: event.toolName, description: event.description, status: 'running' as const }];
-          progressStepsRef.current = next;
-          setProgressSteps(next);
-        } else {
-          const next = progressStepsRef.current.map((s: ProgressStep) => (s.id === event.id ? { ...s, status: 'done' as const } : s));
-          progressStepsRef.current = next;
-          setProgressSteps(next);
-        }
-      };
-      await adreChatStream(req, {
-        onChunk: (contentChunk, reasoningChunk) => {
-          if (contentChunk) fullResponse += contentChunk;
-          if (reasoningChunk) fullReasoning += reasoningChunk;
-          setReasoning(fullReasoning);
-          setResponse(fullResponse);
-        },
-        onProgress: handleProgress,
-      });
-      const finalProgressSteps = progressStepsRef.current;
-      persistAssistantToHistory(userAsk, fullResponse, fullReasoning, finalProgressSteps);
-      setHistory((prev: ChatMessage[]) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: fullResponse,
-          timestamp: Date.now(),
-          reasoning: fullReasoning || undefined,
-          ...(finalProgressSteps.length > 0 && { progressSteps: finalProgressSteps }),
-        },
-      ]);
-      setResponse('');
-      setReasoning('');
-    } catch (err) {
-      enqueueSnackbar(err instanceof Error ? err.message : 'Chat request failed', { variant: 'error' });
-    } finally {
-      setLoading(false);
-      setProgressSteps([]);
-      progressStepsRef.current = [];
-      streamStartTimeRef.current = null;
-    }
-  }, [ask, history, model, mode, enqueueSnackbar]);
-
-  const allMessages: (ChatMessage & { streaming?: boolean })[] = [
-    ...history,
-    ...(response || reasoning || loading
-      ? [
-          {
-            role: 'assistant' as const,
-            content: response,
-            timestamp: streamStartTimeRef.current ?? Date.now(),
-            reasoning: reasoning || undefined,
-            streaming: true,
-          },
-        ]
-      : []),
-  ];
+    await handleSend(userAsk, { model: model || undefined, mode });
+  }, [ask, model, mode, handleSend]);
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -364,7 +159,7 @@ export const AdreChatPanel: FC = () => {
                 Ask a question about your database environment...
               </Typography>
             ) : (
-              <Box sx={{ maxWidth: 768, width: '100%', alignSelf: 'center', display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Box sx={{ maxWidth: '100%', width: '100%', alignSelf: 'center', display: 'flex', flexDirection: 'column', gap: 2 }}>
               {allMessages.map((msg, idx) => (
                 <Box
                   key={idx}
@@ -522,11 +317,7 @@ export const AdreChatPanel: FC = () => {
                           <Markdown
                             remarkPlugins={[remarkGfm]}
                             rehypePlugins={[rehypeRaw]}
-                            components={{
-                              code: ({ children }: { children?: ReactNode }) => (
-                                <CodeBlock>{children}</CodeBlock>
-                              ),
-                            }}
+                            components={getMarkdownComponents(msg.content || response || '')}
                           >
                             {msg.content || response}
                           </Markdown>
@@ -550,7 +341,7 @@ export const AdreChatPanel: FC = () => {
               placeholder="Message ADRE..."
               value={ask}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAsk(e.target.value)}
-              onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+              onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && !e.shiftKey && onSend()}
               fullWidth
               multiline
               minRows={2}
@@ -565,7 +356,7 @@ export const AdreChatPanel: FC = () => {
             <Stack direction="row" justifyContent="flex-end" sx={{ mt: 0.5 }}>
               <IconButton
                 size="small"
-                onClick={handleSend}
+                onClick={onSend}
                 disabled={loading || !ask.trim()}
                 sx={{ color: 'primary.main' }}
                 aria-label="Send"

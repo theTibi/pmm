@@ -1,10 +1,87 @@
-import { Card, CardContent, Link, Typography } from '@mui/material';
-import { FC } from 'react';
+import { Box, Card, CardContent, Link, Typography } from '@mui/material';
+import { FC, useEffect, useState } from 'react';
 import type { InvestigationBlock } from 'api/investigations';
 import { PMM_NEW_NAV_GRAFANA_PATH } from 'lib/constants';
 
+const RENDER_API_PATH = '/v1/grafana/render';
+const RENDER_IMAGE_TIMEOUT_MS = 60000;
+
+/** Fetches panel image with credentials and long timeout so the image loads in reports. */
+const PanelImageWithFetch: FC<{
+  src: string;
+  alt: string;
+  href: string | null;
+}> = ({ src, alt, href }) => {
+  const [state, setState] = useState<'loading' | { status: 'success'; url: string } | { status: 'error' }>('loading');
+
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), RENDER_IMAGE_TIMEOUT_MS);
+
+    fetch(src, { credentials: 'include', signal: controller.signal })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.blob();
+      })
+      .then((blob) => {
+        objectUrl = URL.createObjectURL(blob);
+        setState({ status: 'success', url: objectUrl });
+      })
+      .catch(() => setState({ status: 'error' }))
+      .finally(() => clearTimeout(timeoutId));
+
+    return () => {
+      clearTimeout(timeoutId);
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [src]);
+
+  if (state === 'loading') {
+    return (
+      <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+        Loading panel image…
+      </Typography>
+    );
+  }
+  if (state.status === 'error') {
+    return (
+      <Box sx={{ mb: 1 }}>
+        <Typography variant="body2" color="text.secondary">
+          Image failed to load
+        </Typography>
+        {href && (
+          <Link href={href} target="_blank" rel="noopener noreferrer" sx={{ display: 'inline-block', mt: 0.5 }}>
+            Open panel in Grafana
+          </Link>
+        )}
+      </Box>
+    );
+  }
+  const img = (
+    <Box
+      component="img"
+      src={state.url}
+      alt={alt}
+      loading="lazy"
+      sx={{ maxWidth: '100%', height: 'auto', borderRadius: 1, display: 'block' }}
+    />
+  );
+  return (
+    <Box sx={{ mb: 1 }}>
+      {href ? (
+        <Link href={href} target="_blank" rel="noopener noreferrer" sx={{ display: 'block' }}>
+          {img}
+        </Link>
+      ) : (
+        img
+      )}
+    </Box>
+  );
+};
+
 export const PanelBlock: FC<{ block: InvestigationBlock }> = ({ block }) => {
-  const config = (block.configJson || {}) as {
+  const config = (block.configJson || {}) as Record<string, unknown> & {
     dashboardUid?: string;
     panelId?: string;
     dashboard_uid?: string;
@@ -13,17 +90,28 @@ export const PanelBlock: FC<{ block: InvestigationBlock }> = ({ block }) => {
     timeTo?: string;
     time_from?: string;
     time_to?: string;
+    image_url?: string;
+    dashboard_url?: string;
   };
   const dashboardUid = config.dashboardUid ?? config.dashboard_uid;
   const panelId = config.panelId ?? config.panel_id;
   const timeFrom = config.timeFrom ?? config.time_from;
   const timeTo = config.timeTo ?? config.time_to;
+  const imageUrl = typeof config.image_url === 'string' ? config.image_url : null;
+  const dashboardUrl = typeof config.dashboard_url === 'string' ? config.dashboard_url : null;
 
-  const href = dashboardUid && panelId
-    ? `${PMM_NEW_NAV_GRAFANA_PATH}/d/${dashboardUid}?viewPanel=${panelId}`
-    : dashboardUid
-      ? `${PMM_NEW_NAV_GRAFANA_PATH}/d/${dashboardUid}`
-      : null;
+  const toEpochMsOrOriginal = (s: string) => {
+    if (!s) return s;
+    const date = new Date(s);
+    return Number.isNaN(date.getTime()) ? s : String(date.getTime());
+  };
+  const href =
+    dashboardUrl ??
+    (dashboardUid && panelId
+      ? `${PMM_NEW_NAV_GRAFANA_PATH}/d/${dashboardUid}?viewPanel=${panelId}${timeFrom ? `&from=${encodeURIComponent(toEpochMsOrOriginal(timeFrom))}` : ''}${timeTo ? `&to=${encodeURIComponent(toEpochMsOrOriginal(timeTo))}` : ''}`
+      : dashboardUid
+        ? `${PMM_NEW_NAV_GRAFANA_PATH}/d/${dashboardUid}`
+        : null);
 
   const embedSrc =
     dashboardUid && panelId
@@ -37,6 +125,28 @@ export const PanelBlock: FC<{ block: InvestigationBlock }> = ({ block }) => {
         })()
       : null;
 
+  const renderImageSrc =
+    imageUrl ||
+    (dashboardUid && panelId && timeFrom && timeTo
+      ? (() => {
+          const params = new URLSearchParams({
+            dashboard_uid: dashboardUid,
+            panel_id: String(panelId),
+            from: timeFrom,
+            to: timeTo,
+            width: '1000',
+            height: '500',
+            cache: '1',
+          });
+          Object.entries(config).forEach(([k, v]) => {
+            if ((k.startsWith('var_') || k.startsWith('var-')) && v != null && typeof v === 'string') {
+              params.set(k.startsWith('var_') ? `var-${k.slice(4)}` : k, v);
+            }
+          });
+          return `${RENDER_API_PATH}?${params.toString()}`;
+        })()
+      : null);
+
   return (
     <Card variant="outlined" sx={{ mb: 2 }}>
       <CardContent>
@@ -44,6 +154,13 @@ export const PanelBlock: FC<{ block: InvestigationBlock }> = ({ block }) => {
           <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
             {block.title}
           </Typography>
+        )}
+        {renderImageSrc && (
+          <PanelImageWithFetch
+            src={renderImageSrc}
+            alt={block.title || 'Grafana panel'}
+            href={href}
+          />
         )}
         {embedSrc && (
           <iframe
@@ -61,7 +178,7 @@ export const PanelBlock: FC<{ block: InvestigationBlock }> = ({ block }) => {
           <Link href={href} target="_blank" rel="noopener noreferrer" sx={{ display: 'block', mt: 1 }}>
             Open panel in Grafana
           </Link>
-        ) : !embedSrc ? (
+        ) : !embedSrc && !renderImageSrc ? (
           <Typography variant="body2" color="text.secondary">
             Panel (dashboard_uid or panel_id not set)
           </Typography>

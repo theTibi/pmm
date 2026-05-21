@@ -36,7 +36,7 @@ const (
 	OtelCollectorEnabledDefault        = true
 	OtelLogsRetentionDaysDefault       = 7
 	AdreEnabledDefault                 = false
-	AdrePromptMaxBytes                 = 2048
+	AdrePromptMaxBytes                 = 4096
 	awsPartitionID                     = "aws"
 )
 
@@ -116,6 +116,14 @@ type Settings struct {
 		ChatHistoryLength int `json:"chat_history_length"`
 		// AgentPrompt is the system prompt for the PMM Agent when ChatBackend is holmes_agent. Empty = use built-in default.
 		AgentPrompt string `json:"agent_prompt"`
+		// QanInsightsPrompt is the system prompt for QAN AI Insights (query analytics and optimization). Empty = use built-in default.
+		QanInsightsPrompt string `json:"qan_insights_prompt"`
+		// ReplaceSystemPrompt: when true, Holmes uses only the PMM-provided prompt as the system message (replaces Holmes' default prompt).
+		ReplaceSystemPrompt bool `json:"replace_system_prompt"`
+		// ServiceNow integration fields.
+		ServiceNowURL         string `json:"servicenow_url"`
+		ServiceNowAPIKey      string `json:"servicenow_api_key"`
+		ServiceNowClientToken string `json:"servicenow_client_token"`
 	} `json:"adre"`
 
 	Alerting struct {

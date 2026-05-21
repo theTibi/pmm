@@ -109,9 +109,9 @@ type ChangeSettingsParams struct {
 	EnableAdre *bool
 	// AdreURL is the HolmesGPT base URL (e.g. http://holmesgpt:8080).
 	AdreURL *string
-	// AdreChatPrompt is the system prompt for chat (fast) mode. Max 2048 bytes.
+	// AdreChatPrompt is the system prompt for chat (fast) mode. Max 4096 bytes.
 	AdreChatPrompt *string
-	// AdreInvestigationPrompt is the system prompt for investigation mode. Max 2048 bytes.
+	// AdreInvestigationPrompt is the system prompt for investigation mode. Max 4096 bytes.
 	AdreInvestigationPrompt *string
 	// AdreDefaultChatMode is the default mode when UI does not send one: "chat" or "investigation".
 	AdreDefaultChatMode *string
@@ -121,6 +121,14 @@ type ChangeSettingsParams struct {
 	ChatHistoryLength *int
 	// AgentPrompt: system prompt for PMM Agent when ChatBackend is holmes_agent. Max AdrePromptMaxBytes.
 	AgentPrompt *string
+	// AdreQanInsightsPrompt: system prompt for QAN AI Insights. Max AdrePromptMaxBytes.
+	AdreQanInsightsPrompt *string
+	// ReplaceSystemPrompt: when true, Holmes uses only the PMM-provided prompt (replaces Holmes' default).
+	ReplaceSystemPrompt *bool
+	// ServiceNow integration fields.
+	ServiceNowURL         *string
+	ServiceNowAPIKey      *string
+	ServiceNowClientToken *string
 }
 
 // SetPMMServerID should be run on start up to generate unique PMM Server ID.
@@ -289,6 +297,21 @@ func UpdateSettings(q reform.DBTX, params *ChangeSettingsParams) (*Settings, err
 	if params.AgentPrompt != nil {
 		settings.Adre.AgentPrompt = pointer.GetString(params.AgentPrompt)
 	}
+	if params.AdreQanInsightsPrompt != nil {
+		settings.Adre.QanInsightsPrompt = pointer.GetString(params.AdreQanInsightsPrompt)
+	}
+	if params.ReplaceSystemPrompt != nil {
+		settings.Adre.ReplaceSystemPrompt = *params.ReplaceSystemPrompt
+	}
+	if params.ServiceNowURL != nil {
+		settings.Adre.ServiceNowURL = pointer.GetString(params.ServiceNowURL)
+	}
+	if params.ServiceNowAPIKey != nil {
+		settings.Adre.ServiceNowAPIKey = pointer.GetString(params.ServiceNowAPIKey)
+	}
+	if params.ServiceNowClientToken != nil {
+		settings.Adre.ServiceNowClientToken = pointer.GetString(params.ServiceNowClientToken)
+	}
 
 	err = SaveSettings(q, settings)
 	if err != nil {
@@ -393,6 +416,9 @@ func ValidateSettings(params *ChangeSettingsParams) error {
 	}
 	if params.AgentPrompt != nil && len(*params.AgentPrompt) > AdrePromptMaxBytes {
 		return errors.Errorf("agent_prompt: max %d bytes", AdrePromptMaxBytes)
+	}
+	if params.AdreQanInsightsPrompt != nil && len(*params.AdreQanInsightsPrompt) > AdrePromptMaxBytes {
+		return errors.Errorf("qan_insights_prompt: max %d bytes", AdrePromptMaxBytes)
 	}
 
 	return nil

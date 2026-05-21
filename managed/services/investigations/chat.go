@@ -27,8 +27,10 @@ import (
 	"github.com/percona/pmm/managed/services/adre"
 )
 
-const investigationRunTimeout = 5 * time.Minute
-const investigationChatTimeout = 2 * time.Minute
+const (
+	investigationRunTimeout  = 5 * time.Minute
+	investigationChatTimeout = 2 * time.Minute
+)
 
 func (h *Handlers) requireHolmesURL(w http.ResponseWriter, settings *models.Settings) bool {
 	if settings.GetAdreURL() == "" {
@@ -93,10 +95,10 @@ func (h *Handlers) PostInvestigationChat(w http.ResponseWriter, r *http.Request,
 
 	// Persist user message
 	userMsg := &models.InvestigationMessage{
-		ID:             models.NewInvestigationID(),
+		ID:              models.NewInvestigationID(),
 		InvestigationID: id,
-		Role:           "user",
-		Content:        body.Message,
+		Role:            "user",
+		Content:         body.Message,
 	}
 	if err := models.CreateInvestigationMessage(h.db, userMsg); err != nil {
 		h.l.Errorf("CreateInvestigationMessage: %v", err)
@@ -186,10 +188,10 @@ func (h *Handlers) PostInvestigationChat(w http.ResponseWriter, r *http.Request,
 	}
 
 	assistantMsg := &models.InvestigationMessage{
-		ID:             models.NewInvestigationID(),
+		ID:              models.NewInvestigationID(),
 		InvestigationID: id,
-		Role:           "assistant",
-		Content:        lastContent,
+		Role:            "assistant",
+		Content:         lastContent,
 	}
 	_ = models.CreateInvestigationMessage(h.db, assistantMsg)
 
@@ -221,10 +223,10 @@ func (h *Handlers) PostInvestigationRun(w http.ResponseWriter, r *http.Request, 
 
 	ctxStr := buildInvestigationContext(inv)
 	userMsg := &models.InvestigationMessage{
-		ID:             models.NewInvestigationID(),
+		ID:              models.NewInvestigationID(),
 		InvestigationID: id,
-		Role:           "user",
-		Content:        "Generate the full investigation report.",
+		Role:            "user",
+		Content:         "Generate the full investigation report.",
 	}
 	if err := models.CreateInvestigationMessage(h.db, userMsg); err != nil {
 		h.l.Warnf("CreateInvestigationMessage run user: %v", err)
@@ -282,7 +284,7 @@ func (h *Handlers) PostInvestigationRun(w http.ResponseWriter, r *http.Request, 
 			lastContent = resp.Analysis
 		}
 	case "holmes_agent":
-		ask := "Run the full investigation now. Use ask_holmes to gather logs, metrics, and alerts for this incident, then call generate_investigation_report with the gathered context. Do not ask for confirmation—execute the investigation immediately.\n\nContext:\n" + ctxStr
+		ask := "Run the full investigation now. Use ask_holmes to gather multiple metrics and panels (QPS, connections, redo log, replication, etc.); do not stop after one metric. Then gather logs and alerts, then call generate_investigation_report with the gathered context. Do not ask for confirmation—execute the investigation immediately.\n\nContext:\n" + ctxStr
 		content, err := adre.RunPMMAgentChatSync(ctx, nil, h.l, settings, ask, nil, investigationRunTimeout)
 		if err != nil {
 			h.l.Errorf("PMM Agent run: %v", err)
@@ -362,15 +364,25 @@ func (h *Handlers) PostInvestigationRun(w http.ResponseWriter, r *http.Request, 
 	}
 
 	assistantMsg := &models.InvestigationMessage{
-		ID:             models.NewInvestigationID(),
+		ID:              models.NewInvestigationID(),
 		InvestigationID: id,
-		Role:           "assistant",
-		Content:        lastContent,
+		Role:            "assistant",
+		Content:         lastContent,
 	}
 	_ = models.CreateInvestigationMessage(h.db, assistantMsg)
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{"content": lastContent})
+}
+
+// alertSnapshotEntry is a single alert from Grafana Alertmanager (labels, annotations, fingerprint, etc.).
+type alertSnapshotEntry struct {
+	Labels       map[string]string `json:"labels"`
+	Annotations  map[string]string `json:"annotations"`
+	Fingerprint  string            `json:"fingerprint"`
+	StartsAt     string            `json:"startsAt"`
+	EndsAt       string            `json:"endsAt"`
+	GeneratorURL string            `json:"generatorURL"`
 }
 
 func buildInvestigationContext(inv *models.Investigation) string {
@@ -379,16 +391,64 @@ func buildInvestigationContext(inv *models.Investigation) string {
 		inv.TimeFrom.Format(time.RFC3339), inv.TimeTo.Format(time.RFC3339),
 		inv.Summary)
 	if len(inv.Config) > 0 {
-		var cfg map[string]string
+		var cfg map[string]interface{}
 		if err := json.Unmarshal(inv.Config, &cfg); err == nil {
-			if v := cfg["node_name"]; v != "" {
+			if v, _ := cfg["node_name"].(string); v != "" {
 				s += fmt.Sprintf("\nNode: %s", v)
 			}
-			if v := cfg["service_name"]; v != "" {
+			if v, _ := cfg["service_name"].(string); v != "" {
 				s += fmt.Sprintf("\nService: %s", v)
 			}
-			if v := cfg["cluster_name"]; v != "" {
+			if v, _ := cfg["cluster_name"].(string); v != "" {
 				s += fmt.Sprintf("\nCluster: %s", v)
+			}
+			if raw, ok := cfg["alert_snapshot"].(string); ok && raw != "" {
+				var alerts []alertSnapshotEntry
+				if err := json.Unmarshal([]byte(raw), &alerts); err == nil && len(alerts) > 0 {
+					s += "\n\nFull alert(s):"
+					for i, a := range alerts {
+						s += fmt.Sprintf("\n[Alert %d]", i+1)
+						if len(a.Labels) > 0 {
+							pairs := make([]string, 0, len(a.Labels))
+							for k, v := range a.Labels {
+								pairs = append(pairs, k+"="+v)
+							}
+							s += "\nLabels: " + strings.Join(pairs, ", ")
+						}
+						if len(a.Annotations) > 0 {
+							pairs := make([]string, 0, len(a.Annotations))
+							for k, v := range a.Annotations {
+								pairs = append(pairs, k+"="+v)
+							}
+							s += "\nAnnotations: " + strings.Join(pairs, ", ")
+						}
+						if a.Fingerprint != "" {
+							s += "\nFingerprint: " + a.Fingerprint
+						}
+					}
+				} else {
+					var single alertSnapshotEntry
+					if err := json.Unmarshal([]byte(raw), &single); err == nil {
+						s += "\n\nFull alert(s):\n[Alert 1]"
+						if len(single.Labels) > 0 {
+							pairs := make([]string, 0, len(single.Labels))
+							for k, v := range single.Labels {
+								pairs = append(pairs, k+"="+v)
+							}
+							s += "\nLabels: " + strings.Join(pairs, ", ")
+						}
+						if len(single.Annotations) > 0 {
+							pairs := make([]string, 0, len(single.Annotations))
+							for k, v := range single.Annotations {
+								pairs = append(pairs, k+"="+v)
+							}
+							s += "\nAnnotations: " + strings.Join(pairs, ", ")
+						}
+						if single.Fingerprint != "" {
+							s += "\nFingerprint: " + single.Fingerprint
+						}
+					}
+				}
 			}
 		}
 	}

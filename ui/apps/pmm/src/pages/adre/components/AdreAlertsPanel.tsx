@@ -9,7 +9,7 @@ import {
 } from '@mui/material';
 import { FC, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAdreAlerts } from 'api/adre';
+import { getAdreAlerts, getAlertMetadataFromLabels } from 'api/adre';
 import { useCreateInvestigation } from 'hooks/api/useInvestigations';
 import { useSnackbar } from 'notistack';
 import { PMM_NEW_NAV_PATH } from 'lib/constants';
@@ -75,39 +75,19 @@ export const AdreAlertsPanel: FC<AdreAlertsPanelProps> = ({ alerts: alertsProp }
     });
   };
 
-  const extractFromLabels = (labels?: Record<string, string>) => {
-    if (!labels) return {};
-    const instanceRaw = labels.instance;
-    const nodeFromInstance =
-      instanceRaw != null && instanceRaw.includes(':')
-        ? instanceRaw.split(':')[0]
-        : instanceRaw;
-    return {
-      nodeName:
-        labels.node ??
-        labels.node_name ??
-        labels.nodename ??
-        nodeFromInstance ??
-        undefined,
-      serviceName:
-        labels.service_name ?? labels.service ?? labels.job ?? undefined,
-      clusterName: labels.cluster ?? labels.cluster_name ?? undefined,
-    };
-  };
-
   const handleStartInvestigation = () => {
     const items = alerts.filter((a, i) => selected.has(getAlertKey(a, i)));
     if (items.length === 0) return;
     const titles = items
       .map((a) => a.labels?.alertname ?? a.annotations?.summary ?? 'Alert')
       .filter(Boolean);
-    const title = titles[0] ?? 'Alerts';
+    const title = `Alert: ${titles[0] ?? 'Alerts'}`;
     const sourceRef = items
       .map((a) => a.fingerprint ?? getAlertKey(a, alerts.indexOf(a)))
       .filter(Boolean)
       .join(',');
     const first = items[0];
-    const { nodeName, serviceName, clusterName } = extractFromLabels(first?.labels);
+    const { nodeName, serviceName, clusterName } = getAlertMetadataFromLabels(first?.labels);
     createMutation.mutate(
       {
         title,
@@ -116,6 +96,7 @@ export const AdreAlertsPanel: FC<AdreAlertsPanelProps> = ({ alerts: alertsProp }
         ...(nodeName && { nodeName }),
         ...(serviceName && { serviceName }),
         ...(clusterName && { clusterName }),
+        alertSnapshot: items,
       },
       {
         onSuccess: (inv) => {

@@ -139,6 +139,11 @@ func (h *Handlers) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				h.PostInvestigationRun(w, r, id)
 				return
 			}
+		case len(segments) == 2 && segments[1] == "servicenow":
+			if r.Method == http.MethodPost {
+				h.PostServiceNowTicket(w, r, id)
+				return
+			}
 		case len(segments) == 3 && segments[1] == "export" && segments[2] == "pdf":
 			if r.Method == http.MethodGet {
 				h.GetInvestigationExportPDF(w, r, id)
@@ -184,24 +189,31 @@ func (h *Handlers) ListInvestigations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	type item struct {
-		ID        string `json:"id"`
-		Title     string `json:"title"`
-		Status    string `json:"status"`
-		CreatedAt string `json:"created_at"`
-		UpdatedAt string `json:"updated_at"`
-		TimeFrom  string `json:"time_from,omitempty"`
-		TimeTo    string `json:"time_to,omitempty"`
+		ID         string `json:"id"`
+		Title      string `json:"title"`
+		Status     string `json:"status"`
+		CreatedAt  string `json:"created_at"`
+		UpdatedAt  string `json:"updated_at"`
+		TimeFrom   string `json:"time_from,omitempty"`
+		TimeTo     string `json:"time_to,omitempty"`
+		SourceType string `json:"source_type,omitempty"`
+		NodeName   string `json:"node_name,omitempty"`
+		ServiceName string `json:"service_name,omitempty"`
 	}
 	out := make([]item, len(list))
 	for i, inv := range list {
+		nodeName, serviceName := configNodeService(inv)
 		out[i] = item{
-			ID:        inv.ID,
-			Title:     inv.Title,
-			Status:    inv.Status,
-			CreatedAt: inv.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-			UpdatedAt: inv.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
-			TimeFrom:  inv.TimeFrom.Format("2006-01-02T15:04:05Z07:00"),
-			TimeTo:    inv.TimeTo.Format("2006-01-02T15:04:05Z07:00"),
+			ID:          inv.ID,
+			Title:       inv.Title,
+			Status:      inv.Status,
+			CreatedAt:   inv.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			UpdatedAt:   inv.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			TimeFrom:    inv.TimeFrom.Format("2006-01-02T15:04:05Z07:00"),
+			TimeTo:      inv.TimeTo.Format("2006-01-02T15:04:05Z07:00"),
+			SourceType:  inv.SourceType,
+			NodeName:    nodeName,
+			ServiceName: serviceName,
 		}
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -210,15 +222,16 @@ func (h *Handlers) ListInvestigations(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) CreateInvestigation(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Title        string `json:"title"`
-		TimeFrom     string `json:"time_from"`
-		TimeTo       string `json:"time_to"`
-		SourceType   string `json:"source_type"`
-		SourceRef    string `json:"source_ref"`
-		Summary      string `json:"summary"`
-		NodeName     string `json:"node_name"`
-		ServiceName  string `json:"service_name"`
-		ClusterName  string `json:"cluster_name"`
+		Title        string          `json:"title"`
+		TimeFrom     string          `json:"time_from"`
+		TimeTo       string          `json:"time_to"`
+		SourceType   string          `json:"source_type"`
+		SourceRef    string          `json:"source_ref"`
+		Summary      string          `json:"summary"`
+		NodeName     string          `json:"node_name"`
+		ServiceName  string          `json:"service_name"`
+		ClusterName  string          `json:"cluster_name"`
+		AlertSnapshot json.RawMessage `json:"alert_snapshot"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSONError(w, http.StatusBadRequest, "Invalid JSON: "+err.Error())
@@ -248,17 +261,20 @@ func (h *Handlers) CreateInvestigation(w http.ResponseWriter, r *http.Request) {
 		timeTo = t
 	}
 	config := []byte("{}")
-	if body.NodeName != "" || body.ServiceName != "" || body.ClusterName != "" {
-		cfg := map[string]string{}
-		if body.NodeName != "" {
-			cfg["node_name"] = body.NodeName
-		}
-		if body.ServiceName != "" {
-			cfg["service_name"] = body.ServiceName
-		}
-		if body.ClusterName != "" {
-			cfg["cluster_name"] = body.ClusterName
-		}
+	cfg := map[string]string{}
+	if body.NodeName != "" {
+		cfg["node_name"] = body.NodeName
+	}
+	if body.ServiceName != "" {
+		cfg["service_name"] = body.ServiceName
+	}
+	if body.ClusterName != "" {
+		cfg["cluster_name"] = body.ClusterName
+	}
+	if len(body.AlertSnapshot) > 0 {
+		cfg["alert_snapshot"] = string(body.AlertSnapshot)
+	}
+	if len(cfg) > 0 {
 		if b, err := json.Marshal(cfg); err == nil {
 			config = b
 		}
@@ -322,15 +338,15 @@ func (h *Handlers) PatchInvestigation(w http.ResponseWriter, r *http.Request, id
 		return
 	}
 	var body struct {
-		Title              *string `json:"title"`
-		Status             *string `json:"status"`
-		Summary            *string `json:"summary"`
-		SummaryDetailed    *string `json:"summary_detailed"`
-		RootCauseSummary   *string `json:"root_cause_summary"`
-		ResolutionSummary  *string `json:"resolution_summary"`
-		Severity           *string `json:"severity"`
-		TimeFrom           *string `json:"time_from"`
-		TimeTo             *string `json:"time_to"`
+		Title             *string `json:"title"`
+		Status            *string `json:"status"`
+		Summary           *string `json:"summary"`
+		SummaryDetailed   *string `json:"summary_detailed"`
+		RootCauseSummary  *string `json:"root_cause_summary"`
+		ResolutionSummary *string `json:"resolution_summary"`
+		Severity          *string `json:"severity"`
+		TimeFrom          *string `json:"time_from"`
+		TimeTo            *string `json:"time_to"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSONError(w, http.StatusBadRequest, "Invalid JSON: "+err.Error())
@@ -443,7 +459,7 @@ func (h *Handlers) PostInvestigationBlock(w http.ResponseWriter, r *http.Request
 	}
 	block := &models.InvestigationBlock{
 		ID:              models.NewInvestigationID(),
-		InvestigationID:  id,
+		InvestigationID: id,
 		Type:            body.Type,
 		Title:           body.Title,
 		Position:        body.Position,
@@ -542,11 +558,11 @@ func (h *Handlers) PostInvestigationTimeline(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	var body struct {
-		EventTime   string          `json:"event_time"`
-		Type        string          `json:"type"`
-		Title       string          `json:"title"`
-		Description string          `json:"description"`
-		Source      string          `json:"source"`
+		EventTime    string          `json:"event_time"`
+		Type         string          `json:"type"`
+		Title        string          `json:"title"`
+		Description  string          `json:"description"`
+		Source       string          `json:"source"`
 		MetadataJSON json.RawMessage `json:"metadata_json"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -564,7 +580,7 @@ func (h *Handlers) PostInvestigationTimeline(w http.ResponseWriter, r *http.Requ
 	}
 	event := &models.InvestigationTimelineEvent{
 		ID:              models.NewInvestigationID(),
-		InvestigationID:  id,
+		InvestigationID: id,
 		EventTime:       t,
 		Type:            body.Type,
 		Title:           body.Title,
@@ -612,7 +628,7 @@ func (h *Handlers) PostInvestigationArtifact(w http.ResponseWriter, r *http.Requ
 		Type         string          `json:"type"`
 		URIOrBlobRef string          `json:"uri_or_blob_ref"`
 		Source       string          `json:"source"`
-		MetadataJSON  json.RawMessage `json:"metadata_json"`
+		MetadataJSON json.RawMessage `json:"metadata_json"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSONError(w, http.StatusBadRequest, "Invalid JSON: "+err.Error())
@@ -624,7 +640,7 @@ func (h *Handlers) PostInvestigationArtifact(w http.ResponseWriter, r *http.Requ
 	}
 	artifact := &models.InvestigationArtifact{
 		ID:              models.NewInvestigationID(),
-		InvestigationID:  id,
+		InvestigationID: id,
 		Type:            body.Type,
 		URIOrBlobRef:    body.URIOrBlobRef,
 		Source:          body.Source,
@@ -687,7 +703,7 @@ func (h *Handlers) PostInvestigationComment(w http.ResponseWriter, r *http.Reque
 	}
 	c := &models.InvestigationComment{
 		ID:              models.NewInvestigationID(),
-		InvestigationID:  id,
+		InvestigationID: id,
 		BlockID:         body.BlockID,
 		AnchorJSON:      body.AnchorJSON,
 		Author:          body.Author,

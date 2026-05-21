@@ -20,6 +20,27 @@ export interface AdreSettings {
   agentPromptDisplay?: string;
   /** Backend may return snake_case; frontend may use either. */
   chat_history_length?: number;
+  /** System prompt for QAN AI Insights. Empty = use built-in default. */
+  qanInsightsPrompt?: string;
+  /** Display value when qan_insights_prompt is empty (built-in default). */
+  qanInsightsPromptDisplay?: string;
+  qan_insights_prompt?: string;
+  qan_insights_prompt_display?: string;
+  /** When true, Holmes uses only the PMM-provided prompt (replaces Holmes' default system prompt). */
+  replaceSystemPrompt?: boolean;
+  replace_system_prompt?: boolean;
+  /** ServiceNow Percona Connector API URL. */
+  servicenowUrl?: string;
+  servicenow_url?: string;
+  /** ServiceNow API key (x-sn-apikey header). Only sent when saving; backend never exposes the raw value on GET. */
+  servicenowApiKey?: string;
+  servicenow_api_key?: string;
+  /** ServiceNow client token. Only sent when saving. */
+  servicenowClientToken?: string;
+  servicenow_client_token?: string;
+  /** True when URL + API key + client token are all configured server-side. */
+  servicenowConfigured?: boolean;
+  servicenow_configured?: boolean;
 }
 
 export interface AdreModelsResponse {
@@ -60,6 +81,19 @@ export interface AdreInvestigateResponse {
   instructions?: unknown[];
 }
 
+export interface AdreQanInsightsRequest {
+  serviceId: string;
+  queryText: string;
+  queryId?: string;
+  fingerprint?: string;
+  timeFrom?: string;
+  timeTo?: string;
+}
+
+export interface AdreQanInsightsResponse {
+  analysis: string;
+}
+
 export const getAdreSettings = async (): Promise<AdreSettings> => {
   const res = await api.get<AdreSettings>('/adre/settings');
   return res.data;
@@ -81,6 +115,13 @@ export const adreChat = async (
   body: AdreChatRequest
 ): Promise<AdreChatResponse> => {
   const res = await api.post<AdreChatResponse>('/adre/chat', body);
+  return res.data;
+};
+
+export const adreQanInsights = async (
+  body: AdreQanInsightsRequest
+): Promise<AdreQanInsightsResponse> => {
+  const res = await api.post<AdreQanInsightsResponse>('/adre/qan-insights', body);
   return res.data;
 };
 
@@ -187,6 +228,43 @@ export const getAdreAlerts = async (): Promise<unknown> => {
   const res = await api.get('/adre/alerts');
   return res.data;
 };
+
+export interface AlertMetadataFromLabels {
+  nodeName?: string;
+  serviceName?: string;
+  clusterName?: string;
+  severity?: string;
+}
+
+/** Extract node/service/cluster/severity from alert labels (PMM/VictoriaMetrics conventions). Supports both camelCase and snake_case (axios-case-converter). */
+export function getAlertMetadataFromLabels(
+  labels?: Record<string, string>
+): AlertMetadataFromLabels {
+  if (!labels) return {};
+  const instanceRaw = labels.instance;
+  const nodeFromInstance =
+    instanceRaw != null && instanceRaw.includes(':')
+      ? instanceRaw.split(':')[0]
+      : instanceRaw;
+  return {
+    nodeName:
+      labels.node ??
+      labels.nodeName ??
+      labels.node_name ??
+      labels.nodename ??
+      nodeFromInstance ??
+      undefined,
+    serviceName:
+      labels.serviceName ??
+      labels.service_name ??
+      labels.service ??
+      labels.job ??
+      undefined,
+    clusterName:
+      labels.clusterName ?? labels.cluster ?? labels.cluster_name ?? undefined,
+    severity: labels.severity ?? labels.Severity ?? undefined,
+  };
+}
 
 export const adreInvestigate = async (
   body: AdreInvestigateRequest

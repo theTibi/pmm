@@ -80,10 +80,11 @@ type investigationResponse struct {
 	ResolutionSummary string          `json:"resolution_summary"`
 	SourceType        string          `json:"source_type"`
 	SourceRef         string          `json:"source_ref"`
-	NodeName          string          `json:"node_name,omitempty"`
-	ServiceName       string          `json:"service_name,omitempty"`
-	ClusterName       string          `json:"cluster_name,omitempty"`
-	Blocks            []blockResponse `json:"blocks,omitempty"`
+	NodeName           string          `json:"node_name,omitempty"`
+	ServiceName        string          `json:"service_name,omitempty"`
+	ClusterName        string          `json:"cluster_name,omitempty"`
+	ServiceNowTicketID string          `json:"servicenow_ticket_id,omitempty"`
+	Blocks             []blockResponse `json:"blocks,omitempty"`
 }
 
 func investigationToResponse(inv *models.Investigation) investigationResponse {
@@ -101,18 +102,20 @@ func investigationToResponse(inv *models.Investigation) investigationResponse {
 		SummaryDetailed:   inv.SummaryDetailed,
 		RootCauseSummary:  inv.RootCauseSummary,
 		ResolutionSummary: inv.ResolutionSummary,
-		SourceType:        inv.SourceType,
-		SourceRef:         inv.SourceRef,
+		SourceType:         inv.SourceType,
+		SourceRef:          inv.SourceRef,
+		ServiceNowTicketID: inv.ServiceNowTicketID,
 	}
 	if len(inv.Config) > 0 {
+		nodeName, serviceName := configNodeService(inv)
+		if nodeName != "" {
+			resp.NodeName = nodeName
+		}
+		if serviceName != "" {
+			resp.ServiceName = serviceName
+		}
 		var cfg map[string]string
 		if err := json.Unmarshal(inv.Config, &cfg); err == nil {
-			if v := cfg["node_name"]; v != "" {
-				resp.NodeName = v
-			}
-			if v := cfg["service_name"]; v != "" {
-				resp.ServiceName = v
-			}
 			if v := cfg["cluster_name"]; v != "" {
 				resp.ClusterName = v
 			}
@@ -121,16 +124,28 @@ func investigationToResponse(inv *models.Investigation) investigationResponse {
 	return resp
 }
 
+// configNodeService returns node_name and service_name from investigation config JSON.
+func configNodeService(inv *models.Investigation) (nodeName, serviceName string) {
+	if len(inv.Config) == 0 {
+		return "", ""
+	}
+	var cfg map[string]string
+	if err := json.Unmarshal(inv.Config, &cfg); err != nil {
+		return "", ""
+	}
+	return cfg["node_name"], cfg["service_name"]
+}
+
 type blockResponse struct {
-	ID             string          `json:"id"`
-	InvestigationID string         `json:"investigation_id"`
-	Type           string         `json:"type"`
-	Title          string         `json:"title"`
-	Position       int            `json:"position"`
-	ConfigJSON     json.RawMessage `json:"config_json,omitempty"`
-	DataJSON       json.RawMessage `json:"data_json,omitempty"`
-	CreatedAt      string         `json:"created_at"`
-	UpdatedAt      string         `json:"updated_at"`
+	ID              string          `json:"id"`
+	InvestigationID string          `json:"investigation_id"`
+	Type            string          `json:"type"`
+	Title           string          `json:"title"`
+	Position        int             `json:"position"`
+	ConfigJSON      json.RawMessage `json:"config_json,omitempty"`
+	DataJSON        json.RawMessage `json:"data_json,omitempty"`
+	CreatedAt       string          `json:"created_at"`
+	UpdatedAt       string          `json:"updated_at"`
 }
 
 func blockToResponse(b *models.InvestigationBlock) blockResponse {
@@ -194,7 +209,7 @@ type artifactResponse struct {
 	URIOrBlobRef    string          `json:"uri_or_blob_ref"`
 	Source          string          `json:"source"`
 	MetadataJSON    json.RawMessage `json:"metadata_json,omitempty"`
-	CreatedAt       string         `json:"created_at"`
+	CreatedAt       string          `json:"created_at"`
 }
 
 func artifactToResponse(a *models.InvestigationArtifact) artifactResponse {
@@ -222,10 +237,10 @@ type commentResponse struct {
 	InvestigationID string          `json:"investigation_id"`
 	BlockID         *string         `json:"block_id,omitempty"`
 	AnchorJSON      json.RawMessage `json:"anchor_json,omitempty"`
-	Author          string         `json:"author"`
-	Content         string         `json:"content"`
-	CreatedAt       string         `json:"created_at"`
-	UpdatedAt       string         `json:"updated_at"`
+	Author          string          `json:"author"`
+	Content         string          `json:"content"`
+	CreatedAt       string          `json:"created_at"`
+	UpdatedAt       string          `json:"updated_at"`
 }
 
 func commentToResponse(c *models.InvestigationComment) commentResponse {
@@ -256,7 +271,7 @@ type messageResponse struct {
 	Content         string          `json:"content"`
 	ToolName        string          `json:"tool_name,omitempty"`
 	ToolResultJSON  json.RawMessage `json:"tool_result_json,omitempty"`
-	CreatedAt       string         `json:"created_at"`
+	CreatedAt       string          `json:"created_at"`
 }
 
 func messageToResponse(m *models.InvestigationMessage) messageResponse {

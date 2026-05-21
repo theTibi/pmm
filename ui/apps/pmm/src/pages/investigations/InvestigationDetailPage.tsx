@@ -14,6 +14,7 @@ import {
   Stack,
   Snackbar,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
@@ -22,7 +23,8 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import { FC, useState } from 'react';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import { FC, useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Page } from 'components/page';
 import {
@@ -36,10 +38,17 @@ import {
   usePatchInvestigation,
   usePatchInvestigationBlock,
   useDeleteInvestigationBlock,
+  useCreateServiceNowTicket,
 } from 'hooks/api/useInvestigations';
+import { useAdreSettings } from 'hooks/api/useAdre';
 import { PMM_NEW_NAV_PATH } from 'lib/constants';
 import { getInvestigationExportPdfUrl } from 'api/investigations';
 import type { InvestigationBlock } from 'api/investigations';
+import {
+  getAdreAlerts,
+  getAlertMetadataFromLabels,
+  type AlertMetadataFromLabels,
+} from 'api/adre';
 import { BlockRenderer } from './components/BlockRenderer';
 import { TimelineSection } from './components/TimelineSection';
 
@@ -55,6 +64,9 @@ const BlockWithActions: FC<{
   isPending: boolean;
 }> = ({ block, index, total, onMoveUp, onMoveDown, onDelete, isPending }) => (
   <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mb: 2 }}>
+    <Box sx={{ flex: 1, minWidth: 0 }}>
+      <BlockRenderer block={block} />
+    </Box>
     <Stack direction="row" sx={{ mt: 1 }} spacing={0}>
       <IconButton
         size="small"
@@ -82,9 +94,6 @@ const BlockWithActions: FC<{
         <DeleteOutlineIcon fontSize="small" />
       </IconButton>
     </Stack>
-    <Box sx={{ flex: 1, minWidth: 0 }}>
-      <BlockRenderer block={block} />
-    </Box>
   </Box>
 );
 
@@ -101,11 +110,44 @@ const InvestigationDetailPage: FC = () => {
   const patchInv = usePatchInvestigation(id ?? '');
   const patchBlock = usePatchInvestigationBlock(id ?? '');
   const deleteBlock = useDeleteInvestigationBlock(id ?? '');
+  const createSNTicket = useCreateServiceNowTicket(id ?? '');
+  const { data: adreSettings } = useAdreSettings();
   const [commentText, setCommentText] = useState('');
   const [chatText, setChatText] = useState('');
   const [copyDone, setCopyDone] = useState(false);
   const [snackMessage, setSnackMessage] = useState<string | null>(null);
   const [snackSeverity, setSnackSeverity] = useState<'error' | 'success'>('error');
+  const [fetchedAlertMeta, setFetchedAlertMeta] = useState<AlertMetadataFromLabels>({});
+
+  // When investigation is from an alert but API didn't return node/service, fetch alerts and derive metadata
+  useEffect(() => {
+    if (!inv) return;
+    setFetchedAlertMeta({});
+    if (inv.sourceType !== 'alert' || !inv.sourceRef) return;
+    const refs = new Set(inv.sourceRef.split(',').map((s) => s.trim()).filter(Boolean));
+    if (refs.size === 0) return;
+    let cancelled = false;
+    getAdreAlerts()
+      .then((data: unknown) => {
+        if (cancelled) return;
+        const raw = data as {
+          data?: { alerts?: Array<{ fingerprint?: string; labels?: Record<string, string> }> };
+          alerts?: Array<{ fingerprint?: string; labels?: Record<string, string> }>;
+        };
+        const list = raw?.data?.alerts ?? raw?.alerts ?? [];
+        const arr = Array.isArray(list) ? list : [];
+        const match = arr.find(
+          (a) => a.fingerprint && refs.has(a.fingerprint)
+        );
+        if (match?.labels) {
+          setFetchedAlertMeta(getAlertMetadataFromLabels(match.labels));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [inv?.id, inv?.sourceType, inv?.sourceRef]);
 
   const showError = (msg: string) => {
     setSnackMessage(msg);
@@ -231,6 +273,44 @@ const InvestigationDetailPage: FC = () => {
           >
             Export PDF
           </Button>
+          {(() => {
+            const ticketId = inv.servicenowTicketId ?? inv.servicenow_ticket_id;
+            const snConfigured = adreSettings?.servicenowConfigured ?? adreSettings?.servicenow_configured ?? false;
+            if (ticketId) {
+              return (
+                <Chip
+                  icon={<CheckCircleOutlineIcon />}
+                  label={`ServiceNow: ${ticketId}`}
+                  color="success"
+                  size="small"
+                  variant="outlined"
+                />
+              );
+            }
+            return (
+              <Tooltip
+                title={snConfigured ? '' : 'Configure ServiceNow in AI Assistant settings'}
+              >
+                <span>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    color="success"
+                    disabled={!snConfigured || createSNTicket.isPending}
+                    onClick={() =>
+                      id &&
+                      createSNTicket.mutate(undefined, {
+                        onError: (err) => showError(`ServiceNow: ${getErrorMessage(err)}`),
+                        onSuccess: (data) => showSuccess(`ServiceNow ticket created: ${data.ticket_id}`),
+                      })
+                    }
+                  >
+                    {createSNTicket.isPending ? 'Creating…' : 'Create ServiceNow Ticket'}
+                  </Button>
+                </span>
+              </Tooltip>
+            );
+          })()}
           <Button
             variant="contained"
             size="small"
@@ -250,16 +330,18 @@ const InvestigationDetailPage: FC = () => {
     >
       {/* Summary */}
       {inv.summary && (
-        <Card variant="outlined" sx={{ mb: 2, bgcolor: 'action.hover' }}>
-          <CardContent>
-            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-              Summary
-            </Typography>
-            <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
-              {inv.summary}
-            </Typography>
-          </CardContent>
-        </Card>
+        <>
+          <Typography variant="h6" sx={{ mb: 1 }}>
+            Summary
+          </Typography>
+          <Card variant="outlined" sx={{ mb: 2, bgcolor: 'action.hover' }}>
+            <CardContent>
+              <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
+                {inv.summary}
+              </Typography>
+            </CardContent>
+          </Card>
+        </>
       )}
 
       {/* Metadata row */}
@@ -271,22 +353,28 @@ const InvestigationDetailPage: FC = () => {
         )}
         {inv.sourceType && (
           <Typography variant="body2" color="text.secondary">
-            Source: {inv.sourceType}
+            Source:{' '}
+            {inv.sourceType === 'alert' ? 'Alert' : 'User request'}
           </Typography>
         )}
-        {(inv.nodeName ?? (inv as { node_name?: string }).node_name) && (
+        {(inv.nodeName ?? (inv as { node_name?: string }).node_name ?? fetchedAlertMeta.nodeName) && (
           <Typography variant="body2" color="text.secondary">
-            Node: {inv.nodeName ?? (inv as { node_name?: string }).node_name}
+            Node: {inv.nodeName ?? (inv as { node_name?: string }).node_name ?? fetchedAlertMeta.nodeName}
           </Typography>
         )}
-        {(inv.serviceName ?? (inv as { service_name?: string }).service_name) && (
+        {(inv.serviceName ?? (inv as { service_name?: string }).service_name ?? fetchedAlertMeta.serviceName) && (
           <Typography variant="body2" color="text.secondary">
-            Service: {inv.serviceName ?? (inv as { service_name?: string }).service_name}
+            Service: {inv.serviceName ?? (inv as { service_name?: string }).service_name ?? fetchedAlertMeta.serviceName}
           </Typography>
         )}
-        {(inv.clusterName ?? (inv as { cluster_name?: string }).cluster_name) && (
+        {(inv.clusterName ?? (inv as { cluster_name?: string }).cluster_name ?? fetchedAlertMeta.clusterName) && (
           <Typography variant="body2" color="text.secondary">
-            Cluster: {inv.clusterName ?? (inv as { cluster_name?: string }).cluster_name}
+            Cluster: {inv.clusterName ?? (inv as { cluster_name?: string }).cluster_name ?? fetchedAlertMeta.clusterName}
+          </Typography>
+        )}
+        {(inv.severity ?? (inv as { severity?: string }).severity ?? fetchedAlertMeta.severity) && (
+          <Typography variant="body2" color="text.secondary">
+            Severity: {inv.severity ?? (inv as { severity?: string }).severity ?? fetchedAlertMeta.severity}
           </Typography>
         )}
       </Stack>

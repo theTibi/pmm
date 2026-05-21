@@ -87,9 +87,9 @@ import (
 	"github.com/percona/pmm/managed/services/dump"
 	"github.com/percona/pmm/managed/services/grafana"
 	"github.com/percona/pmm/managed/services/ha"
-	"github.com/percona/pmm/managed/services/investigations"
 	"github.com/percona/pmm/managed/services/inventory"
 	inventorygrpc "github.com/percona/pmm/managed/services/inventory/grpc"
+	"github.com/percona/pmm/managed/services/investigations"
 	"github.com/percona/pmm/managed/services/management"
 	managementbackup "github.com/percona/pmm/managed/services/management/backup"
 	"github.com/percona/pmm/managed/services/management/common"
@@ -218,6 +218,13 @@ func addAdreHandlers(mux *http.ServeMux, db reform.DBTX, grafanaAlertsFetch adre
 	mux.HandleFunc("/v1/adre/chat", h.PostChat)
 	mux.HandleFunc("/v1/adre/alerts", h.GetAlerts)
 	mux.HandleFunc("/v1/adre/investigate", h.PostInvestigate)
+	mux.HandleFunc("/v1/adre/qan-insights", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		h.PostQanInsights(w, r)
+	})
 }
 
 func addInvestigationsHandlers(mux *http.ServeMux, db *reform.DB) {
@@ -453,6 +460,7 @@ func runHTTP1Server(ctx context.Context, deps *http1ServerDeps) {
 	mux := http.NewServeMux()
 	addLogsHandler(mux, deps.logs)
 	addAdreHandlers(mux, deps.db, deps.grafanaClient)
+	mux.Handle("/v1/grafana/render", grafana.NewRenderHandler(deps.grafanaClient))
 	addInvestigationsHandlers(mux, deps.db)
 	mux.Handle("/auth_request", deps.authServer)
 	mux.Handle("/", proxyMux)
@@ -1232,7 +1240,7 @@ func main() { //nolint:maintidx,cyclop
 			})
 	})
 
-		wg.Go(func() {
+	wg.Go(func() {
 		runHTTP1Server(ctx, &http1ServerDeps{
 			logs:          logs,
 			authServer:    authServer,

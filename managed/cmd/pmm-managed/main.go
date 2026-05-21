@@ -77,6 +77,7 @@ import (
 	uieventsv1 "github.com/percona/pmm/api/uievents/v1"
 	userv1 "github.com/percona/pmm/api/user/v1"
 	"github.com/percona/pmm/managed/models"
+	"github.com/percona/pmm/managed/services/adre"
 	"github.com/percona/pmm/managed/services/agents"
 	agentgrpc "github.com/percona/pmm/managed/services/agents/grpc"
 	"github.com/percona/pmm/managed/services/alerting"
@@ -198,6 +199,24 @@ func addLogsHandler(mux *http.ServeMux, logs *server.Logs) {
 			l.Errorf("%+v", err)
 		}
 	})
+}
+
+func addAdreHandlers(mux *http.ServeMux, db reform.DBTX, grafanaAlertsFetch adre.GrafanaAlertsFetcher) {
+	h := adre.NewHandlers(db, grafanaAlertsFetch)
+	mux.HandleFunc("/v1/adre/settings", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			h.GetSettings(w, r)
+		case http.MethodPost:
+			h.PostSettings(w, r)
+		default:
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		}
+	})
+	mux.HandleFunc("/v1/adre/models", h.GetModels)
+	mux.HandleFunc("/v1/adre/chat", h.PostChat)
+	mux.HandleFunc("/v1/adre/alerts", h.GetAlerts)
+	mux.HandleFunc("/v1/adre/investigate", h.PostInvestigate)
 }
 
 type gRPCServerDeps struct {
@@ -343,8 +362,10 @@ func runGRPCServer(ctx context.Context, deps *gRPCServerDeps) {
 }
 
 type http1ServerDeps struct {
-	logs       *server.Logs
-	authServer *grafana.AuthServer
+	logs           *server.Logs
+	authServer     *grafana.AuthServer
+	db             reform.DBTX
+	grafanaClient  *grafana.Client
 }
 
 // runHTTP1Server runs grpc-gateway and other HTTP 1.1 APIs (like auth_request and logs.zip)
@@ -424,6 +445,7 @@ func runHTTP1Server(ctx context.Context, deps *http1ServerDeps) {
 
 	mux := http.NewServeMux()
 	addLogsHandler(mux, deps.logs)
+	addAdreHandlers(mux, deps.db, deps.grafanaClient)
 	mux.Handle("/auth_request", deps.authServer)
 	mux.Handle("/", proxyMux)
 
@@ -520,10 +542,7 @@ type setupDeps struct {
 
 // setup performs setup tasks that depend on database.
 func setup(ctx context.Context, deps *setupDeps) bool {
-	l := reform.NewPrintfLogger(deps.l.Debugf)
-	db := reform.NewDB(deps.sqlDB, postgresql.Dialect, l)
-
-	// log and ignore validation errors; fail on other errors
+	// log and ignore validation errors; fail on critical errors
 	deps.l.Infof("Updating settings...")
 	env := os.Environ()
 	sort.Strings(env)
@@ -539,16 +558,10 @@ func setup(ctx context.Context, deps *setupDeps) bool {
 	}
 
 	deps.l.Infof("Updating supervisord configuration...")
-	settings, err := models.GetSettings(db.Querier)
-	if err != nil {
-		deps.l.Warnf("Failed to get settings: %s.", err)
-		return false
-	}
-	ssoDetails, err := models.GetPerconaSSODetails(ctx, db.Querier)
-	if err != nil && !errors.Is(err, models.ErrNotConnectedToPortal) {
-		deps.l.Warnf("Failed to get Percona SSO Details: %s.", err)
-	}
-	if err = deps.supervisord.UpdateConfiguration(settings, ssoDetails); err != nil {
+	// Use server.UpdateConfigurations so OTEL config is built with BuildServerOtelConfigYAML (filelog + presets).
+	// Direct supervisord.UpdateConfiguration(..., nil) would write receiver-only OTEL config.
+	var err error
+	if err = deps.server.UpdateConfigurations(ctx); err != nil {
 		deps.l.Warnf("Failed to update supervisord configuration: %s.", err)
 		return false
 	}
@@ -1193,10 +1206,12 @@ func main() { //nolint:maintidx,cyclop
 			})
 	})
 
-	wg.Go(func() {
+		wg.Go(func() {
 		runHTTP1Server(ctx, &http1ServerDeps{
-			logs:       logs,
-			authServer: authServer,
+			logs:          logs,
+			authServer:    authServer,
+			db:            db,
+			grafanaClient: grafanaClient,
 		})
 	})
 

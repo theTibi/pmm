@@ -98,6 +98,8 @@ var rules = map[string]role{
 	"/v1/qan":  viewer,
 	"/v1/qan:": viewer,
 
+	"/otlp": viewer, // OTLP ingest from pmm-agent (logs/traces); viewer is enough for push
+
 	"/prometheus":      admin,
 	"/victoriametrics": admin,
 	"/nomad":           admin,
@@ -117,6 +119,10 @@ var rules = map[string]role{
 	"/v1/realtimeanalytics/sessions:stop":  admin,
 	"/v1/realtimeanalytics/sessions":       viewer,
 	"/v1/realtimeanalytics/queries:search": viewer,
+
+	// ADRE (Autonomous Database Reliability Engineer) / HolmesGPT.
+	"/v1/adre/settings": viewer,
+	"/v1/adre":          viewer,
 
 	// "/auth_request"  has auth_request disabled in nginx config
 

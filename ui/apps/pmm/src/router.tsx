@@ -6,10 +6,12 @@ import { UpdateClients } from 'pages/update-clients/UpdateClients';
 import { MainWithNav } from 'components/main/MainWithNav';
 import { NotFoundPage } from 'pages/not-found';
 import { HelpCenter } from 'pages/help-center';
+import { HomePage } from 'pages/home';
 import { RealtimeSelection } from 'pages/rta/selection';
 import Providers from 'Providers';
 import {
   PMM_NEW_NAV_PATH,
+  PMM_HOME_PAGE_PATH,
   PMM_SERVICENOW_SETTINGS_PATH,
   EXTENSIONS_ATW_PATH,
   EXTENSIONS_MYSQL_BACKUPS_PATH,
@@ -47,7 +49,11 @@ const router = createBrowserRouter(
           children: [
             {
               path: '',
-              element: <Navigate to="graph" />,
+              element: <Navigate to={relativeToNav(PMM_HOME_PAGE_PATH)} />,
+            },
+            {
+              path: relativeToNav(PMM_HOME_PAGE_PATH),
+              element: <HomePage />,
             },
             {
               path: 'updates',

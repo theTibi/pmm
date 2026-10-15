@@ -11,6 +11,7 @@ import {
   addExtensionsApps,
   addDashboardItems,
   addOm,
+  addHomePage,
 } from './navigation.utils';
 import { NAV_MONGO } from './navigation.constants';
 import { ServiceType } from 'types/services.types';
@@ -204,5 +205,16 @@ describe('addDashboardItems', () => {
 
   it('has no MongoDB menu with neither MongoDB nor extras', () => {
     expect(mongoMenu(addDashboardItems([], []))).toBeUndefined();
+  });
+});
+
+describe('addHomePage', () => {
+  it('points Home at the native homepage and keeps the Grafana home matches', () => {
+    const home = addHomePage();
+
+    expect(home.url).toBe('/home');
+    expect(home.matches).toEqual(
+      expect.arrayContaining(['/home', '/graph/d/pmm-home'])
+    );
   });
 });

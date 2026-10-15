@@ -1,7 +1,11 @@
 import { PMM_NEW_NAV_GRAFANA_PATH } from 'lib/constants';
-import { AttentionKind } from 'types/home.types';
+import { AttentionKind, FleetDimension } from 'types/home.types';
 
 export const MAX_ATTENTION_ROWS = 10;
+
+export const HOME_REFRESH_MS = 60_000;
+
+export const DEFAULT_FLEET_BY: FleetDimension = 'technology';
 
 export const ALERTING_LIST_URL = `${PMM_NEW_NAV_GRAFANA_PATH}/alerting/list`;
 export const INVENTORY_SERVICES_URL = `${PMM_NEW_NAV_GRAFANA_PATH}/inventory/services`;

@@ -3,6 +3,7 @@ import {
   PMM_LOGOUT_URL,
   PMM_NEW_NAV_GRAFANA_PATH,
   PMM_NEW_NAV_PATH,
+  PMM_HOME_PAGE_PATH,
   EXTENSIONS_ATW_PATH,
   EXTENSIONS_MYSQL_BACKUPS_PATH,
 } from 'lib/constants';
@@ -63,8 +64,9 @@ export const NAV_HOME_PAGE: NavItem = {
   id: 'home-page',
   icon: HomeIcon,
   text: 'Home page',
-  url: `${PMM_NEW_NAV_GRAFANA_PATH}/`,
+  url: PMM_HOME_PAGE_PATH,
   matches: [
+    PMM_HOME_PAGE_PATH,
     `${PMM_NEW_NAV_GRAFANA_PATH}/d/pmm-home/home-dashboard`,
     `${PMM_NEW_NAV_GRAFANA_PATH}/d/pmm-home`,
   ],

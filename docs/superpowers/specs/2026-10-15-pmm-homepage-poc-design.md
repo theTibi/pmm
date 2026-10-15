@@ -40,28 +40,27 @@ All derivation runs in the browser in one pure module, so it can be unit-tested 
 
 | Input | Endpoint | Used for |
 |---|---|---|
-| Services | `GET /v1/inventory/services` | Instances, cluster membership, environment, technology, custom labels |
-| Nodes | `GET /v1/inventory/nodes` | Region of each service's node |
-| Agents | `GET /v1/inventory/agents` | Instances not reporting |
+| Services | `GET /v1/management/services` | Instances, cluster membership, environment, technology, custom labels, up/down status |
+| Nodes | `GET /v1/management/nodes` | Region of each service's node |
 | Firing alerts | Grafana Alertmanager `GET /alertmanager/grafana/api/v2/alerts` (active, not silenced, not inhibited) | Alert-driven problems |
 | Alert rules | Grafana `GET /prometheus/grafana/api/v1/rules` (already used by the UI) | "Checked" line: rules evaluated |
 | Advisor results | `GET /v1/advisors/failedServices` | Advisor findings per service |
 | Backups | `GET /v1/backups/artifacts` | Failed backups in the last 24 h |
 
-Every PMM metric carries `service_name`, `service_type`, `environment`, `cluster`, `replication_set`, `node_name`, `region` and custom labels (`managed/models` `UnifiedLabels`), so alerts built on them can be attached to a service.
+Every PMM metric carries `service_name`, `service_type`, `environment`, `cluster`, `replication_set`, `node_name`, `region` and custom labels (`managed/models` `UnifiedLabels`). An alert is attached to the cluster of the service named in its `service_name` label; failing that, to the cluster named in its `cluster` label (some built-in templates, e.g. `mongodb_pbm_backup_failed`, aggregate down to `cluster`); failing both, it is unattributed (e.g. PMM Server's own `grafana_down`).
 
 ### Definitions
 
-- **Instance** = a service. **Cluster** = services sharing the same `cluster` value; if empty, the same `replication_set`; if both are empty, the service on its own.
+- **Instance** = a service. **Cluster** = services in the same environment sharing the same `cluster` value; if empty, the same `replication_set`; if both are empty, the service on its own.
 - **Cluster technology** = the most common `service_type` among its services.
 - **Application** = the `app` custom label (a convention for the PoC; clusters without it go under "no app label").
-- **Not reporting** = a service whose pmm-agent is disconnected or whose exporter is not `RUNNING`.
+- **Not reporting** = a service whose management status is `STATUS_DOWN` (pmm-managed derives it from the exporter's `up` metric and the pmm-agent connection). `STATUS_UNKNOWN` counts neither as reporting nor as a problem.
 - **Cluster state** = the worst condition among its services:
 
 | State | Any of |
 |---|---|
 | Critical | a firing alert with severity `emergency`, `alert` or `critical`; a service not reporting |
-| Warning | a firing alert with severity `error` or `warning`; a failed backup in the last 24 h |
+| Warning | a firing alert with severity `error`, `warning` or no severity label; a failed backup in the last 24 h |
 | Notice | a firing alert with severity `notice` or `info`; any failed Advisor check |
 | Healthy | none of the above |
 
@@ -71,7 +70,7 @@ Advisor findings are always Notice: they describe configuration, not an ongoing 
 
 ### 1. Status
 
-- Title: "All clear" when every cluster in scope is healthy, otherwise "N clusters need attention, in G groups".
+- Title: "All clear" when every cluster in scope is healthy and every data source loaded; "No known problems" when healthy but a source failed; otherwise "N clusters need attention, in G groups". With no services at all: "No databases monitored yet" and a link to add one.
 - Counts of clusters by state; instances reporting (x / y).
 - "Checked" line: alert rules evaluated and how many are firing; services with Advisor results; backups in the last 24 h and how many succeeded.
 
@@ -88,7 +87,7 @@ One row per shared cause, ordered by severity, then clusters affected:
 
 Each row shows severity, since when, clusters and instances affected, and links to the existing page that holds the detail (Alerting, Inventory, Backups, Advisors). When nothing is wrong the block reads "Nothing needs attention" in the same place.
 
-Alerts that carry no `service_name` are counted in their rule's row but cannot be attributed to a cluster.
+Unattributed alerts count in their rule's row but not toward any cluster, and are shown only when no scope filter is set. At most 10 rows are shown; the rest are summarised in a "N more" link to Alerting.
 
 ### 3. Fleet health
 
@@ -106,7 +105,7 @@ Alerts that carry no `service_name` are counted in their rule's row but cannot b
 
 - `pages/home/` — `HomePage.tsx` and one component per block.
 - `pages/home/home.utils.ts` — the pure derivation module (clusters, states, groups, fleet rows).
-- `api/` + `hooks/api/` — new modules for nodes, inventory agents, Alertmanager alerts, advisor results and backup artifacts where they don't exist yet, following the existing patterns.
+- `api/` + `hooks/api/` — new functions for management nodes, active Alertmanager alerts, advisor results and backup artifacts, following the existing patterns; management services and alert rules already have hooks.
 - `router.tsx` — add the `home` route and point the default route at it.
 
 ## Scale
@@ -122,6 +121,6 @@ The PoC aggregates in the browser and loads full lists from seven endpoints. Tha
 
 ## Risks and open questions
 
-- Alert rules that aggregate labels away (`sum by (…)`) produce alerts without `service_name`; how common this is in PMM's built-in templates is not yet checked.
-- The severity mapping assumes PMM alert rules set a `severity` label with the values above; to be confirmed against the templates.
+- Checked: PMM's 51 built-in alert templates use severities `critical` (22), `warning` (28) and `error` (1). Rules users write themselves may use anything, hence the "no label → Warning" default.
+- Templates that aggregate across services keep `cluster` at best; PMM Server's own alerts (e.g. `grafana_down`, `ha_*`) are never attributable.
 - The `app` label is a convention invented for the PoC.

@@ -62,7 +62,10 @@ describe('attributeAlert', () => {
 
   it('attributes an alert by service_id', () => {
     expect(
-      attributeAlert(alert({ alertname: 'backup_error', service_id: 'c1' }), index)
+      attributeAlert(
+        alert({ alertname: 'backup_error', service_id: 'c1' }),
+        index
+      )
     ).toBe(keyOf('events'));
   });
 
@@ -87,7 +90,10 @@ describe('attributeAlert', () => {
     const unnamed = buildClusters([svc({ nodeName: '' })], []);
 
     expect(
-      attributeAlert(alert({ alertname: 'grafana_down' }), indexClusters(unnamed))
+      attributeAlert(
+        alert({ alertname: 'grafana_down' }),
+        indexClusters(unnamed)
+      )
     ).toBeUndefined();
   });
 

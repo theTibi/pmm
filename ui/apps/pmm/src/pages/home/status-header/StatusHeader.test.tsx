@@ -25,6 +25,9 @@ const renderHeader = (
         summary={HEALTHY}
         checks={CHECKS}
         groups={0}
+        outsideClusters={0}
+        fleetEmpty={false}
+        off={[]}
         incomplete={false}
         {...props}
       />
@@ -69,6 +72,7 @@ describe('StatusHeader', () => {
   it('says No databases monitored yet and links to add one', () => {
     renderHeader({
       summary: { ...HEALTHY, clusters: 0, instances: 0, instancesReporting: 0 },
+      fleetEmpty: true,
     });
 
     expect(
@@ -77,6 +81,28 @@ describe('StatusHeader', () => {
     expect(
       screen.getByRole('link', { name: 'Add a database' })
     ).toHaveAttribute('href', '/graph/add-instance');
+  });
+
+  it('says nothing matches when the filters leave no clusters', () => {
+    renderHeader({
+      summary: { ...HEALTHY, clusters: 0, instances: 0, instancesReporting: 0 },
+    });
+
+    expect(
+      screen.getByRole('heading', { name: 'Nothing matches these filters' })
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Clear filters' })).toHaveAttribute(
+      'href',
+      '/home'
+    );
+  });
+
+  it('does not say All clear while problems outside any cluster are shown', () => {
+    renderHeader({ outsideClusters: 2 });
+
+    expect(
+      screen.getByRole('heading', { name: '2 problems outside any cluster' })
+    ).toBeInTheDocument();
   });
 
   it('shows unknown for a check whose source failed', () => {

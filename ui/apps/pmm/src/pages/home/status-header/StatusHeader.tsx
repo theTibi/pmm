@@ -1,8 +1,14 @@
 import { FC } from 'react';
 import { Box, Link, Stack, Typography } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
-import { ClusterState, HomeChecks, HomeSummary } from 'types/home.types';
+import {
+  ClusterState,
+  HomeChecks,
+  HomeSource,
+  HomeSummary,
+} from 'types/home.types';
 import { Messages } from '../HomePage.messages';
+import { PMM_HOME_PAGE_PATH } from 'lib/constants';
 import { ADD_INSTANCE_URL } from '../HomePage.constants';
 import { STATE_COLORS } from '../HomePage.styles';
 
@@ -10,6 +16,11 @@ export interface StatusHeaderProps {
   summary: HomeSummary;
   checks: HomeChecks;
   groups: number;
+  // Problem rows that belong to no cluster, such as PMM Server's own alerts.
+  outsideClusters: number;
+  fleetEmpty: boolean;
+  // Sources turned off in settings.
+  off: HomeSource[];
   incomplete: boolean;
 }
 
@@ -18,18 +29,37 @@ const STATES: ClusterState[] = ['critical', 'warning', 'notice', 'healthy'];
 const headingFor = ({
   summary,
   groups,
+  outsideClusters,
+  fleetEmpty,
   incomplete,
 }: StatusHeaderProps): string => {
   const problems =
     summary.counts.critical + summary.counts.warning + summary.counts.notice;
-  if (summary.instances === 0) {
+  if (fleetEmpty) {
     return Messages.noDatabases;
+  }
+  if (summary.instances === 0) {
+    return Messages.noMatch;
   }
   if (problems > 0) {
     return Messages.needAttention(problems, groups);
   }
+  if (outsideClusters > 0) {
+    return Messages.outsideClusters(outsideClusters);
+  }
   return incomplete ? Messages.noKnownProblems : Messages.allClear;
 };
+
+const EmptyLink: FC<{ fleetEmpty: boolean }> = ({ fleetEmpty }) =>
+  fleetEmpty ? (
+    <Link component={RouterLink} to={ADD_INSTANCE_URL}>
+      {Messages.addDatabase}
+    </Link>
+  ) : (
+    <Link component={RouterLink} to={PMM_HOME_PAGE_PATH}>
+      {Messages.clearFilters}
+    </Link>
+  );
 
 export const StatusHeader: FC<StatusHeaderProps> = (props) => {
   const { summary, checks } = props;
@@ -40,9 +70,7 @@ export const StatusHeader: FC<StatusHeaderProps> = (props) => {
         {headingFor(props)}
       </Typography>
       {summary.instances === 0 ? (
-        <Link component={RouterLink} to={ADD_INSTANCE_URL}>
-          {Messages.addDatabase}
-        </Link>
+        <EmptyLink fleetEmpty={props.fleetEmpty} />
       ) : (
         <>
           <Stack direction="row" flexWrap="wrap" columnGap={2.5} rowGap={1}>
@@ -83,10 +111,14 @@ export const StatusHeader: FC<StatusHeaderProps> = (props) => {
               {Messages.checkedAlerts(checks.alertRules, checks.firing)}
             </Typography>
             <Typography variant="body2">
-              {Messages.checkedAdvisors(checks.advisorServices)}
+              {props.off.includes('advisors')
+                ? Messages.advisorsOff
+                : Messages.checkedAdvisors(checks.advisorServices)}
             </Typography>
             <Typography variant="body2">
-              {Messages.checkedBackups(checks.backups)}
+              {props.off.includes('backups')
+                ? Messages.backupsOff
+                : Messages.checkedBackups(checks.backups)}
             </Typography>
           </Stack>
         </>

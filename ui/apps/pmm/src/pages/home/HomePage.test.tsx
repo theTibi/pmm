@@ -1,14 +1,19 @@
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
+import { Route, Routes } from 'react-router-dom';
 import {
   wrapWithQueryProvider,
+  wrapWithSettings,
   wrapWithUpdatesProvider,
 } from 'utils/testUtils';
 import { TestWrapper } from 'utils/testWrapper';
+import { TEST_USER_VIEWER } from 'utils/testStubs';
+import { Settings } from 'types/settings.types';
+import { User } from 'types/user.types';
 import { PrometheusAlertRulesResponse } from 'types/alerting.types';
 import { ManagedService } from 'types/services.types';
 import { safeLocalStorage } from 'utils/storage.utils';
 import { alert, artifact, node, summary, svc } from './utils/test-fixtures';
-import { FLEET_BY_STORAGE_KEY } from './HomePage.constants';
+import { FLEET_BY_STORAGE_KEY, HOME_REFRESH_MS } from './HomePage.constants';
 import { HomePage } from './HomePage';
 
 const mocks = vi.hoisted(() => ({
@@ -72,13 +77,33 @@ const givenSources = (services: ManagedService[] = FLEET) => {
   mocks.listBackupArtifacts.mockResolvedValue([]);
 };
 
-const renderPage = (url = '/home') =>
+const FEATURES_ON: Partial<Settings> = {
+  advisorEnabled: true,
+  backupManagementEnabled: true,
+};
+
+const renderPage = (
+  url = '/home',
+  {
+    settings = FEATURES_ON,
+    user,
+  }: { settings?: Partial<Settings>; user?: User } = {}
+) =>
   render(
     wrapWithQueryProvider(
       wrapWithUpdatesProvider(
-        <TestWrapper routerProps={{ initialEntries: [url] }}>
-          <HomePage />
-        </TestWrapper>
+        wrapWithSettings(
+          <TestWrapper
+            routerProps={{ initialEntries: [url] }}
+            {...(user && { userContext: { isLoading: false, user } })}
+          >
+            <Routes>
+              <Route path="/home" element={<HomePage />} />
+              <Route path="/graph/" element={<p>Grafana home</p>} />
+            </Routes>
+          </TestWrapper>,
+          { settings }
+        )
       )
     )
   );
@@ -204,5 +229,116 @@ describe('HomePage', () => {
       await screen.findByText("Couldn't load the monitored services")
     ).toBeInTheDocument();
     expect(screen.queryByText('Fleet health')).not.toBeInTheDocument();
+  });
+
+  it('sends users who are not PMM admins to the Grafana home', async () => {
+    renderPage('/home', { user: TEST_USER_VIEWER });
+
+    expect(await screen.findByText('Grafana home')).toBeInTheDocument();
+    expect(mocks.listManagedServices).not.toHaveBeenCalled();
+  });
+
+  it('does not say All clear above a PMM Server alert', async () => {
+    mocks.getActiveAlerts.mockResolvedValue([
+      alert({ alertname: 'grafana_down', severity: 'critical' }),
+    ]);
+
+    renderPage();
+
+    expect(
+      await screen.findByRole('heading', {
+        level: 1,
+        name: '1 problem outside any cluster',
+      })
+    ).toBeInTheDocument();
+  });
+
+  it('keeps an alert that is ambiguous across environments out of a scoped view', async () => {
+    givenSources([
+      ...FLEET,
+      svc({
+        serviceName: 'orders-stg',
+        cluster: 'orders',
+        environment: 'staging',
+      }),
+    ]);
+    mocks.getActiveAlerts.mockResolvedValue([
+      alert({
+        alertname: 'no_primary',
+        cluster: 'orders',
+        severity: 'critical',
+      }),
+    ]);
+
+    renderPage('/home?environment=prod');
+
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'All clear' })
+    ).toBeInTheDocument();
+  });
+
+  it('says nothing matches when the filters leave no clusters', async () => {
+    renderPage('/home?environment=staging&technology=mysql');
+
+    expect(
+      await screen.findByRole('heading', {
+        level: 1,
+        name: 'Nothing matches these filters',
+      })
+    ).toBeInTheDocument();
+  });
+
+  it('does not say All clear while alerts are still loading', async () => {
+    mocks.getActiveAlerts.mockReturnValue(new Promise(() => {}));
+
+    renderPage();
+
+    expect(
+      await screen.findByRole('heading', {
+        level: 1,
+        name: 'No known problems',
+      })
+    ).toBeInTheDocument();
+  });
+
+  it('does not query Advisors or backups when they are turned off', async () => {
+    renderPage('/home', {
+      settings: { advisorEnabled: false, backupManagementEnabled: false },
+    });
+
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'All clear' })
+    ).toBeInTheDocument();
+    expect(screen.getByText('Advisors: off')).toBeInTheDocument();
+    expect(screen.getByText('Backups: off')).toBeInTheDocument();
+    expect(mocks.listFailedServices).not.toHaveBeenCalled();
+    expect(mocks.listBackupArtifacts).not.toHaveBeenCalled();
+  });
+
+  it('moves the since time forward when unchanged data refreshes', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date('2026-10-15T10:10:00Z'));
+    mocks.getActiveAlerts.mockResolvedValue([
+      alert(
+        { alertname: 'lag', service_name: 'orders-1' },
+        '2026-10-15T10:08:00Z'
+      ),
+    ]);
+
+    try {
+      renderPage();
+      expect(
+        await screen.findByText('since 2 minutes ago')
+      ).toBeInTheDocument();
+
+      vi.setSystemTime(new Date('2026-10-15T10:19:00Z'));
+      await act(() => vi.advanceTimersByTimeAsync(HOME_REFRESH_MS));
+
+      expect(
+        await screen.findByText('since 12 minutes ago')
+      ).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

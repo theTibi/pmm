@@ -9,22 +9,26 @@ import { HOME_REFRESH_MS } from './HomePage.constants';
 
 const options = { refetchInterval: HOME_REFRESH_MS };
 
-export const useHomeData = () => {
+interface HomeFeatures {
+  advisors: boolean;
+  backups: boolean;
+}
+
+export const useHomeData = (features: HomeFeatures) => {
   const services = useManagedServices({}, options);
   const nodes = useManagedNodes(options);
   const alerts = useActiveAlerts(options);
   const rules = usePrometheusAlertRules(options);
-  const advisors = useFailedServices(options);
-  const backups = useBackupArtifacts(options);
+  const advisors = useFailedServices({
+    ...options,
+    enabled: features.advisors,
+  });
+  const backups = useBackupArtifacts({ ...options, enabled: features.backups });
 
-  const sources: Record<HomeSource, { isError: boolean }> = {
-    services,
-    nodes,
-    alerts,
-    rules,
-    advisors,
-    backups,
-  };
+  const sources: Record<HomeSource, { isError: boolean; isLoading: boolean }> =
+    { services, nodes, alerts, rules, advisors, backups };
+  const where = (match: (source: HomeSource) => boolean) =>
+    (Object.keys(sources) as HomeSource[]).filter(match);
 
   return {
     services: services.data?.services,
@@ -34,8 +38,14 @@ export const useHomeData = () => {
     failedServices: advisors.data,
     artifacts: backups.data,
     isLoading: services.isLoading,
-    failed: (Object.keys(sources) as HomeSource[]).filter(
-      (source) => sources[source].isError
+    // Changes on every refresh, even when the data does not.
+    updatedAt: services.dataUpdatedAt,
+    failed: where((source) => sources[source].isError),
+    pending: where((source) => sources[source].isLoading),
+    off: where(
+      (source) =>
+        (source === 'advisors' && !features.advisors) ||
+        (source === 'backups' && !features.backups)
     ),
   };
 };

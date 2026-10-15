@@ -1,12 +1,15 @@
 import { FC, useMemo, useState } from 'react';
 import { Alert, Stack } from '@mui/material';
 import CircularProgress from '@mui/material/CircularProgress';
-import { useSearchParams } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import { Page } from 'components/page';
+import { useUser } from 'contexts/user';
+import { useSettings } from 'contexts/settings';
+import { PMM_NEW_NAV_GRAFANA_PATH } from 'lib/constants';
 import { FleetDimension, HealthInput, HomeScope } from 'types/home.types';
 import { safeLocalStorage } from 'utils/storage.utils';
 import { buildClusters } from './utils/clusters';
-import { computeStates } from './utils/health';
+import { attributeAlert, computeStates, indexClusters } from './utils/health';
 import { buildAttention, countFiringAlerts } from './utils/attention';
 import {
   applyScope,
@@ -40,21 +43,53 @@ const scopeFromParams = (params: URLSearchParams): HomeScope =>
     FLEET_DIMENSIONS.filter((d) => params.get(d)).map((d) => [d, params.get(d)])
   );
 
+// The page reads admin-only APIs, so everyone else keeps the Grafana home.
 export const HomePage: FC = () => {
+  const { user } = useUser();
+
+  return user?.isPMMAdmin ? (
+    <HomeView />
+  ) : (
+    <Navigate to={`${PMM_NEW_NAV_GRAFANA_PATH}/`} replace />
+  );
+};
+
+const HomeView: FC = () => {
   const [params, setParams] = useSearchParams();
   const [by, setBy] = useState(storedFleetBy);
-  const data = useHomeData();
-  const { services, nodes, alerts, rules, failedServices, artifacts, failed } =
-    data;
+  const { settings } = useSettings();
+  const data = useHomeData({
+    advisors: !!settings?.advisorEnabled,
+    backups: !!settings?.backupManagementEnabled,
+  });
+  const {
+    services,
+    nodes,
+    alerts,
+    rules,
+    failedServices,
+    artifacts,
+    updatedAt,
+    failed,
+    pending,
+    off,
+  } = data;
   const paramsKey = params.toString();
 
   const view = useMemo(() => {
+    // Recomputed on every refresh (updatedAt), so ages and the 24 h window move on.
     const now = new Date();
     const scope = scopeFromParams(new URLSearchParams(paramsKey));
     const all = buildClusters(services ?? [], nodes ?? []);
     const clusters = applyScope(all, scope);
+    // Match alerts against the whole fleet, so a scope cannot make an ambiguous alert unique.
+    const fleet = indexClusters(all);
+    const keys = new Set(clusters.map((c) => c.key));
+    const scopedAlerts = isScoped(scope)
+      ? alerts?.filter((a) => keys.has(attributeAlert(a, fleet) ?? ''))
+      : alerts;
     const input: HealthInput = {
-      alerts: alerts ?? [],
+      alerts: scopedAlerts ?? [],
       failedServices: failedServices ?? [],
       artifacts: artifacts ?? [],
     };
@@ -71,7 +106,8 @@ export const HomePage: FC = () => {
       checks: buildChecks(
         {
           rules,
-          firing: alerts && countFiringAlerts(clusters, alerts, opts),
+          firing:
+            scopedAlerts && countFiringAlerts(clusters, scopedAlerts, opts),
           failedServices: inScope(failedServices, ids),
           artifacts: inScope(artifacts, ids),
         },
@@ -79,6 +115,8 @@ export const HomePage: FC = () => {
       ),
       attention,
       groups: attention.filter((item) => item.clusters > 0).length,
+      outsideClusters: attention.filter((item) => item.clusters === 0).length,
+      fleetEmpty: all.length === 0,
       rows: buildFleetRows(clusters, states, attention, by),
     };
   }, [
@@ -89,6 +127,7 @@ export const HomePage: FC = () => {
     rules,
     failedServices,
     artifacts,
+    updatedAt,
     by,
   ]);
 
@@ -122,7 +161,10 @@ export const HomePage: FC = () => {
           summary={view.summary}
           checks={view.checks}
           groups={view.groups}
-          incomplete={failed.length > 0}
+          outsideClusters={view.outsideClusters}
+          fleetEmpty={view.fleetEmpty}
+          off={off}
+          incomplete={failed.length > 0 || pending.length > 0}
         />
         <NeedsAttention items={view.attention} failed={failed} now={view.now} />
         <FleetHealth rows={view.rows} by={by} onByChange={changeBy} />

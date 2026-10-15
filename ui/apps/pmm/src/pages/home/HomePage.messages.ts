@@ -30,6 +30,10 @@ export const Messages = {
   noKnownProblems: 'No known problems',
   noDatabases: 'No databases monitored yet',
   addDatabase: 'Add a database',
+  noMatch: 'Nothing matches these filters',
+  clearFilters: 'Clear filters',
+  outsideClusters: (n: number) =>
+    `${count(n, 'problem', 'problems')} outside any cluster`,
   needAttention: (clusters: number, groups: number) =>
     `${count(clusters, 'cluster', 'clusters')} ${clusters === 1 ? 'needs' : 'need'} attention, in ${count(groups, 'group', 'groups')}`,
   states: {
@@ -46,6 +50,8 @@ export const Messages = {
   instancesReporting: (reporting: number, total: number) =>
     `${reporting} of ${count(total, 'instance', 'instances')} reporting`,
   checked: 'Checked',
+  advisorsOff: 'Advisors: off',
+  backupsOff: 'Backups: off',
   checkedAlerts: (rules: number | null, firing: number | null) =>
     rules === null
       ? `Alert rules: ${unknown}`

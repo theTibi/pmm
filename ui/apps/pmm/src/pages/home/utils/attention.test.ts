@@ -180,6 +180,31 @@ describe('buildAttention', () => {
     ]);
   });
 
+  it('leaves a down service out of not-reporting when an alert already names it', () => {
+    const down = buildClusters(
+      [
+        svc({
+          serviceName: 'rs103',
+          cluster: 'sessions',
+          status: ServiceStatus.down,
+        }),
+      ],
+      []
+    );
+
+    const items = buildAttention(
+      down,
+      {
+        ...EMPTY,
+        alerts: [alert({ alertname: 'mongodb_down', service_name: 'rs103' })],
+      },
+      NOW,
+      ALL
+    );
+
+    expect(items.map((i) => i.kind)).toEqual(['alert']);
+  });
+
   it('adds a failed-backup item with the shared location', () => {
     const [item] = buildAttention(
       clusters,

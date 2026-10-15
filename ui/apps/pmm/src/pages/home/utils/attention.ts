@@ -117,9 +117,23 @@ const alertItems = (
   });
 };
 
-const notReportingItem = (clusters: Cluster[]): AttentionItem[] => {
+// A down service that an alert already names is shown once, in that alert's row.
+const notReportingItem = (
+  clusters: Cluster[],
+  alerts: AlertmanagerAlert[]
+): AttentionItem[] => {
+  const alerting = new Set(
+    alerts.flatMap((a) => [a.labels.service_name, a.labels.service_id])
+  );
   const down = clusters.flatMap((c) =>
-    c.services.filter((s) => s.status === ServiceStatus.down).map(() => c.key)
+    c.services
+      .filter(
+        (s) =>
+          s.status === ServiceStatus.down &&
+          !alerting.has(s.name) &&
+          !alerting.has(s.id)
+      )
+      .map(() => c.key)
   );
   return down.length
     ? [
@@ -192,7 +206,7 @@ export const buildAttention = (
 ): AttentionItem[] =>
   [
     ...alertItems(clusters, input.alerts, opts),
-    ...notReportingItem(clusters),
+    ...notReportingItem(clusters, input.alerts),
     ...backupItem(clusters, input, now),
     ...advisorItem(clusters, input),
   ].sort(

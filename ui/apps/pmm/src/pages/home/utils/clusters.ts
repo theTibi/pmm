@@ -76,6 +76,7 @@ export const buildClusters = (
       id: service.serviceId,
       name: service.serviceName,
       type: service.serviceType,
+      node: service.nodeName ?? '',
       environment: service.environment ?? '',
       region: regions.get(service.nodeId) ?? '',
       app: service.customLabels?.app ?? '',

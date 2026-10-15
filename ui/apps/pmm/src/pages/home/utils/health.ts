@@ -24,6 +24,7 @@ export interface ClusterIndex {
   byServiceName: Map<string, string>;
   byServiceId: Map<string, string>;
   byClusterName: Map<string, Cluster[]>;
+  byNodeName: Map<string, Set<string>>;
 }
 
 export const severityFromLabels = (
@@ -44,12 +45,15 @@ export const indexClusters = (clusters: Cluster[]): ClusterIndex => {
     byServiceName: new Map(),
     byServiceId: new Map(),
     byClusterName: new Map(),
+    byNodeName: new Map(),
   };
 
   for (const cluster of clusters) {
     for (const service of cluster.services) {
       index.byServiceName.set(service.name, cluster.key);
       index.byServiceId.set(service.id, cluster.key);
+      const onNode = index.byNodeName.get(service.node) ?? new Set();
+      index.byNodeName.set(service.node, onNode.add(cluster.key));
     }
     // Alerts carry the services' `cluster` label, so only clusters built from it can match.
     if (cluster.key.includes('|c:')) {
@@ -64,20 +68,26 @@ export const attributeAlert = (
   alert: AlertmanagerAlert,
   index: ClusterIndex
 ): string | undefined => {
-  const byService = index.byServiceName.get(alert.labels.service_name ?? '');
+  const { labels } = alert;
+  const byService =
+    index.byServiceName.get(labels.service_name ?? '') ??
+    index.byServiceId.get(labels.service_id ?? '');
   if (byService) {
     return byService;
   }
 
-  const clusterName = alert.labels.cluster;
-  if (!clusterName) {
-    return undefined;
+  if (labels.cluster) {
+    const candidates = (index.byClusterName.get(labels.cluster) ?? []).filter(
+      (c) => !labels.environment || c.environment === labels.environment
+    );
+    return candidates.length === 1 ? candidates[0].key : undefined;
   }
-  const environment = alert.labels.environment;
-  const candidates = (index.byClusterName.get(clusterName) ?? []).filter(
-    (c) => !environment || c.environment === environment
-  );
-  return candidates.length === 1 ? candidates[0].key : undefined;
+
+  // Node-level templates (CPU, memory, agent down) carry only the node.
+  const onNode = labels.node_name
+    ? index.byNodeName.get(labels.node_name)
+    : undefined;
+  return onNode?.size === 1 ? [...onNode][0] : undefined;
 };
 
 export const recentFailedBackups = (

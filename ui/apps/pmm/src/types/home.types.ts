@@ -27,6 +27,7 @@ export interface HomeService {
   id: string;
   name: string;
   type: string;
+  node: string;
   environment: string;
   region: string;
   app: string;

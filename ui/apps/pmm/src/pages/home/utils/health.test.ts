@@ -60,6 +60,43 @@ describe('attributeAlert', () => {
     ).toBe(keyOf('orders'));
   });
 
+  it('attributes an alert by service_id', () => {
+    expect(
+      attributeAlert(alert({ alertname: 'backup_error', service_id: 'c1' }), index)
+    ).toBe(keyOf('events'));
+  });
+
+  it('attributes a node alert to the one cluster on that node', () => {
+    const onNodes = buildClusters(
+      [
+        svc({ serviceName: 'db-1', nodeName: 'host-a', cluster: 'shop' }),
+        svc({ serviceName: 'db-2', nodeName: 'host-b', cluster: 'shop' }),
+      ],
+      []
+    );
+
+    expect(
+      attributeAlert(
+        alert({ alertname: 'node_high_cpu_load', node_name: 'host-b' }),
+        indexClusters(onNodes)
+      )
+    ).toBe(onNodes[0].key);
+  });
+
+  it('does not attribute an alert without labels to a cluster on an unnamed node', () => {
+    const unnamed = buildClusters([svc({ nodeName: '' })], []);
+
+    expect(
+      attributeAlert(alert({ alertname: 'grafana_down' }), indexClusters(unnamed))
+    ).toBeUndefined();
+  });
+
+  it('leaves a node alert unattributed when the node hosts several clusters', () => {
+    expect(
+      attributeAlert(alert({ alertname: 'x', node_name: 'node-1' }), index)
+    ).toBeUndefined();
+  });
+
   it('attributes an alert by cluster label when service_name is missing', () => {
     expect(
       attributeAlert(alert({ alertname: 'x', cluster: 'events' }), index)

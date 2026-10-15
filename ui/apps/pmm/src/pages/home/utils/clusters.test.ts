@@ -16,6 +16,20 @@ describe('buildClusters', () => {
     expect(cluster.services.map((s) => s.id)).toEqual(['a', 'b']);
   });
 
+  it("leaves out PMM Server's own PostgreSQL", () => {
+    const clusters = buildClusters(
+      [
+        svc({
+          serviceName: 'pmm-server-postgresql',
+          serviceType: 'postgresql',
+        }),
+      ],
+      []
+    );
+
+    expect(clusters).toEqual([]);
+  });
+
   it('keeps the same cluster name in different environments apart', () => {
     const clusters = buildClusters(
       [

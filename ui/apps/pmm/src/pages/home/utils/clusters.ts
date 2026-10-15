@@ -2,6 +2,9 @@ import { Cluster, HomeService } from 'types/home.types';
 import { ManagedNode } from 'types/nodes.types';
 import { ManagedService } from 'types/services.types';
 
+// PMM Server's own database; the backend leaves it out of user services too.
+const PMM_SERVER_POSTGRESQL = 'pmm-server-postgresql';
+
 const TECHNOLOGY_LABELS: Record<string, string> = {
   mysql: 'MySQL',
   mongodb: 'MongoDB',
@@ -64,6 +67,9 @@ export const buildClusters = (
   const groups = new Map<string, { name: string; services: HomeService[] }>();
 
   for (const service of services) {
+    if (service.serviceName === PMM_SERVER_POSTGRESQL) {
+      continue;
+    }
     const { key, name } = clusterIdentity(service);
     const group = groups.get(key) ?? { name, services: [] };
     group.services.push({

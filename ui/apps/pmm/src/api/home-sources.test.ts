@@ -4,6 +4,8 @@ import { listBackupArtifacts } from './backups';
 import { listFailedServices } from './advisors';
 import { getActiveAlerts } from './alerting';
 
+// The homepage reports failures inline, so these calls skip the error snackbar.
+const QUIET = { disableNotifications: true };
 const NODE = { nodeId: 'n1', nodeName: 'db-1', region: 'eu-west-1' };
 
 describe('home data sources', () => {
@@ -17,7 +19,7 @@ describe('home data sources', () => {
       .mockResolvedValue({ data: { nodes: [NODE] } });
 
     expect(await listManagedNodes()).toEqual([NODE]);
-    expect(get).toHaveBeenCalledWith('/management/nodes');
+    expect(get).toHaveBeenCalledWith('/management/nodes', QUIET);
   });
 
   it('returns [] when nodes are missing', async () => {
@@ -33,7 +35,7 @@ describe('home data sources', () => {
       .mockResolvedValue({ data: { artifacts: [artifact] } });
 
     expect(await listBackupArtifacts()).toEqual([artifact]);
-    expect(get).toHaveBeenCalledWith('/backups/artifacts');
+    expect(get).toHaveBeenCalledWith('/backups/artifacts', QUIET);
   });
 
   it('lists services with failed advisor checks', async () => {
@@ -43,7 +45,7 @@ describe('home data sources', () => {
       .mockResolvedValue({ data: { result: [summary] } });
 
     expect(await listFailedServices()).toEqual([summary]);
-    expect(get).toHaveBeenCalledWith('/advisors/failedServices');
+    expect(get).toHaveBeenCalledWith('/advisors/failedServices', QUIET);
   });
 
   it('lists active, unsilenced alerts', async () => {

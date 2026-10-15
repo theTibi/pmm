@@ -13,7 +13,8 @@ export const listAdvisors = async (): Promise<Advisor[]> => {
 
 export const listFailedServices = async (): Promise<CheckResultSummary[]> => {
   const res = await api.get<ListFailedServicesResponse>(
-    '/advisors/failedServices'
+    '/advisors/failedServices',
+    { disableNotifications: true }
   );
   return res.data.result ?? [];
 };

@@ -8,7 +8,10 @@ const clusters = buildClusters(
     svc({ cluster: 'events', serviceType: 'mongodb', nodeId: 'n2' }),
     svc({ cluster: 'reports', environment: 'staging', nodeId: 'n1' }),
   ],
-  [node({ nodeId: 'n1', region: 'eu-west-1' }), node({ nodeId: 'n2', region: 'us-east-1' })]
+  [
+    node({ nodeId: 'n1', region: 'eu-west-1' }),
+    node({ nodeId: 'n2', region: 'us-east-1' }),
+  ]
 );
 const names = (list: typeof clusters) => list.map((c) => c.name);
 

@@ -31,10 +31,7 @@ const storedFleetBy = (): FleetDimension => {
 
 const scopeFromParams = (params: URLSearchParams): HomeScope =>
   Object.fromEntries(
-    FLEET_DIMENSIONS.filter((d) => params.get(d)).map((d) => [
-      d,
-      params.get(d),
-    ])
+    FLEET_DIMENSIONS.filter((d) => params.get(d)).map((d) => [d, params.get(d)])
   );
 
 export const HomePage: FC = () => {
@@ -77,14 +74,22 @@ export const HomePage: FC = () => {
       groups: attention.filter((item) => item.clusters > 0).length,
       rows: buildFleetRows(clusters, states, attention, by),
     };
-  }, [paramsKey, services, nodes, alerts, rules, failedServices, artifacts, by]);
+  }, [
+    paramsKey,
+    services,
+    nodes,
+    alerts,
+    rules,
+    failedServices,
+    artifacts,
+    by,
+  ]);
 
   const changeScope = (scope: HomeScope) =>
     setParams(
-      Object.fromEntries(Object.entries(scope).filter(([, v]) => !!v)) as Record<
-        string,
-        string
-      >
+      Object.fromEntries(
+        Object.entries(scope).filter(([, v]) => !!v)
+      ) as Record<string, string>
     );
 
   const changeBy = (next: FleetDimension) => {

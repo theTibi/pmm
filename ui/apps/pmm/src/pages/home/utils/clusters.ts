@@ -39,7 +39,10 @@ const mostCommon = (values: string[]): string => {
 const clusterIdentity = (service: ManagedService) => {
   const environment = service.environment ?? '';
   if (service.cluster) {
-    return { key: `${environment}|c:${service.cluster}`, name: service.cluster };
+    return {
+      key: `${environment}|c:${service.cluster}`,
+      name: service.cluster,
+    };
   }
   if (service.replicationSet) {
     return {

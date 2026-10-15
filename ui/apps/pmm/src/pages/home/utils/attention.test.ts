@@ -29,8 +29,14 @@ describe('buildAttention', () => {
       {
         ...EMPTY,
         alerts: [
-          alert({ alertname: 'lag', service_name: 'orders-1' }, '2026-10-15T10:02:00Z'),
-          alert({ alertname: 'lag', service_name: 'billing-1' }, '2026-10-15T10:00:00Z'),
+          alert(
+            { alertname: 'lag', service_name: 'orders-1' },
+            '2026-10-15T10:02:00Z'
+          ),
+          alert(
+            { alertname: 'lag', service_name: 'billing-1' },
+            '2026-10-15T10:00:00Z'
+          ),
         ],
       },
       NOW,
@@ -54,8 +60,14 @@ describe('buildAttention', () => {
       {
         ...EMPTY,
         alerts: [
-          alert({ alertname: 'lag', service_name: 'orders-1' }, '2026-10-15T10:00:00Z'),
-          alert({ alertname: 'lag', service_name: 'billing-1' }, '2026-10-15T10:04:00Z'),
+          alert(
+            { alertname: 'lag', service_name: 'orders-1' },
+            '2026-10-15T10:00:00Z'
+          ),
+          alert(
+            { alertname: 'lag', service_name: 'billing-1' },
+            '2026-10-15T10:04:00Z'
+          ),
         ],
       },
       NOW,
@@ -71,8 +83,14 @@ describe('buildAttention', () => {
       {
         ...EMPTY,
         alerts: [
-          alert({ alertname: 'lag', service_name: 'orders-1' }, '2026-10-15T10:00:00Z'),
-          alert({ alertname: 'lag', service_name: 'billing-1' }, '2026-10-15T10:06:00Z'),
+          alert(
+            { alertname: 'lag', service_name: 'orders-1' },
+            '2026-10-15T10:00:00Z'
+          ),
+          alert(
+            { alertname: 'lag', service_name: 'billing-1' },
+            '2026-10-15T10:06:00Z'
+          ),
         ],
       },
       NOW,
@@ -232,9 +250,21 @@ describe('buildAttention', () => {
       clusters,
       {
         alerts: [
-          alert({ alertname: 'warn-wide', service_name: 'orders-1', severity: 'warning' }),
-          alert({ alertname: 'warn-wide', service_name: 'billing-1', severity: 'warning' }),
-          alert({ alertname: 'crit', service_name: 'events-1', severity: 'critical' }),
+          alert({
+            alertname: 'warn-wide',
+            service_name: 'orders-1',
+            severity: 'warning',
+          }),
+          alert({
+            alertname: 'warn-wide',
+            service_name: 'billing-1',
+            severity: 'warning',
+          }),
+          alert({
+            alertname: 'crit',
+            service_name: 'events-1',
+            severity: 'critical',
+          }),
         ],
         failedServices: [summary({ serviceId: 'a1', noticeCount: 1 })],
         artifacts: [artifact({ serviceId: 'c1' })],

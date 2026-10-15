@@ -119,12 +119,18 @@ const alertItems = (
 
 const notReportingItem = (clusters: Cluster[]): AttentionItem[] => {
   const down = clusters.flatMap((c) =>
-    c.services
-      .filter((s) => s.status === ServiceStatus.down)
-      .map(() => c.key)
+    c.services.filter((s) => s.status === ServiceStatus.down).map(() => c.key)
   );
   return down.length
-    ? [item('not-reporting', 'not-reporting', 'critical', distinct(down), down.length)]
+    ? [
+        item(
+          'not-reporting',
+          'not-reporting',
+          'critical',
+          distinct(down),
+          down.length
+        ),
+      ]
     : [];
 };
 

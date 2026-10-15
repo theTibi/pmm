@@ -90,7 +90,10 @@ describe('buildChecks', () => {
           artifact({ status: BackupStatus.Success }),
           artifact({ status: BackupStatus.Success }),
           artifact({ status: BackupStatus.Error }),
-          artifact({ status: BackupStatus.Success, createdAt: '2026-10-13T02:00:00Z' }),
+          artifact({
+            status: BackupStatus.Success,
+            createdAt: '2026-10-13T02:00:00Z',
+          }),
         ],
       },
       NOW

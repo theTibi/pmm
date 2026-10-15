@@ -44,7 +44,9 @@ const rowName = (row: FleetRow, by: FleetDimension): string => {
 const HealthBar: FC<{ counts: FleetRow['counts'] }> = ({ counts }) => (
   <Box
     role="img"
-    aria-label={STATES.map((s) => `${counts[s]} ${Messages.states[s]}`).join(', ')}
+    aria-label={STATES.map((s) => `${counts[s]} ${Messages.states[s]}`).join(
+      ', '
+    )}
     sx={{
       display: 'flex',
       gap: '2px',
@@ -64,16 +66,15 @@ const HealthBar: FC<{ counts: FleetRow['counts'] }> = ({ counts }) => (
 );
 
 const CountCell: FC<{ value: number }> = ({ value }) => (
-  <TableCell align="right" sx={{ color: value ? 'text.primary' : 'text.secondary' }}>
+  <TableCell
+    align="right"
+    sx={{ color: value ? 'text.primary' : 'text.secondary' }}
+  >
     {value || '—'}
   </TableCell>
 );
 
-export const FleetHealth: FC<FleetHealthProps> = ({
-  rows,
-  by,
-  onByChange,
-}) => (
+export const FleetHealth: FC<FleetHealthProps> = ({ rows, by, onByChange }) => (
   <Card variant="outlined">
     <CardContent>
       <Stack
@@ -91,7 +92,9 @@ export const FleetHealth: FC<FleetHealthProps> = ({
           exclusive
           value={by}
           aria-label={Messages.by}
-          onChange={(_, value: FleetDimension | null) => value && onByChange(value)}
+          onChange={(_, value: FleetDimension | null) =>
+            value && onByChange(value)
+          }
         >
           {FLEET_DIMENSIONS.map((dimension) => (
             <ToggleButton key={dimension} value={dimension}>

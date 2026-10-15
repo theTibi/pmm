@@ -19,7 +19,10 @@ const item = (over: Partial<AttentionItem>): AttentionItem => ({
   ...over,
 });
 
-const renderList = (items: AttentionItem[], failed: Parameters<typeof NeedsAttention>[0]['failed'] = []) =>
+const renderList = (
+  items: AttentionItem[],
+  failed: Parameters<typeof NeedsAttention>[0]['failed'] = []
+) =>
   render(
     <TestWrapper>
       <NeedsAttention items={items} failed={failed} now={NOW} />
@@ -29,17 +32,32 @@ const renderList = (items: AttentionItem[], failed: Parameters<typeof NeedsAtten
 describe('NeedsAttention', () => {
   it('renders attention rows in order with links to their pages', () => {
     renderList([
-      item({ commonLabels: { region: 'eu-west-1' }, startedTogether: true, clusters: 19, instances: 27 }),
-      item({ id: 'backup', kind: 'backup', severity: 'warning', ruleName: undefined, location: 's3-main' }),
+      item({
+        commonLabels: { region: 'eu-west-1' },
+        startedTogether: true,
+        clusters: 19,
+        instances: 27,
+      }),
+      item({
+        id: 'backup',
+        kind: 'backup',
+        severity: 'warning',
+        ruleName: undefined,
+        location: 's3-main',
+      }),
     ]);
 
     const rows = screen.getAllByRole('listitem');
     expect(rows).toHaveLength(2);
     expect(within(rows[0]).getByText('lag on 19 clusters')).toBeInTheDocument();
     expect(
-      within(rows[0]).getByText('27 instances · region: eu-west-1 · started together')
+      within(rows[0]).getByText(
+        '27 instances · region: eu-west-1 · started together'
+      )
     ).toBeInTheDocument();
-    expect(within(rows[0]).getByText('since 28 minutes ago')).toBeInTheDocument();
+    expect(
+      within(rows[0]).getByText('since 28 minutes ago')
+    ).toBeInTheDocument();
     expect(within(rows[0]).getByRole('link', { name: 'Open' })).toHaveAttribute(
       'href',
       '/graph/alerting/list'

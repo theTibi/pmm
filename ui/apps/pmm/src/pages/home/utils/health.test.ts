@@ -119,7 +119,11 @@ describe('computeStates', () => {
       {
         ...EMPTY,
         alerts: [
-          alert({ alertname: 'x', service_name: 'orders-1', severity: 'warning' }),
+          alert({
+            alertname: 'x',
+            service_name: 'orders-1',
+            severity: 'warning',
+          }),
         ],
         failedServices: [summary({ serviceId: 'a2', noticeCount: 1 })],
       },
@@ -132,7 +136,10 @@ describe('computeStates', () => {
   it('treats advisor findings as notice even when their checks are critical', () => {
     const states = computeStates(
       clusters,
-      { ...EMPTY, failedServices: [summary({ serviceId: 'c1', criticalCount: 3 })] },
+      {
+        ...EMPTY,
+        failedServices: [summary({ serviceId: 'c1', criticalCount: 3 })],
+      },
       NOW
     );
 
@@ -152,14 +159,13 @@ describe('computeStates', () => {
   it('leaves clusters healthy when an alert is unattributed', () => {
     const states = computeStates(
       clusters,
-      { ...EMPTY, alerts: [alert({ alertname: 'grafana_down', severity: 'critical' })] },
+      {
+        ...EMPTY,
+        alerts: [alert({ alertname: 'grafana_down', severity: 'critical' })],
+      },
       NOW
     );
 
-    expect([...states.values()]).toEqual([
-      'healthy',
-      'healthy',
-      'healthy',
-    ]);
+    expect([...states.values()]).toEqual(['healthy', 'healthy', 'healthy']);
   });
 });

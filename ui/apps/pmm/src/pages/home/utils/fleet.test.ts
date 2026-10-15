@@ -62,7 +62,10 @@ describe('buildFleetRows', () => {
         svc({ cluster: 'b', nodeId: 'us' }),
         svc({ cluster: 'c', nodeId: 'eu' }),
       ],
-      [node({ nodeId: 'us', region: 'us-east-1' }), node({ nodeId: 'eu', region: 'eu-west-1' })]
+      [
+        node({ nodeId: 'us', region: 'us-east-1' }),
+        node({ nodeId: 'eu', region: 'eu-west-1' }),
+      ]
     );
     const healthy = new Map<string, ClusterState>(
       regional.map((c) => [c.key, 'healthy'])
@@ -88,7 +91,13 @@ describe('buildFleetRows', () => {
 
     expect(MAX_FLEET_ROWS).toBe(6);
     expect(rows).toHaveLength(6);
-    expect(rows.slice(0, 5).map((r) => r.name)).toEqual(['a', 'b', 'c', 'd', 'e']);
+    expect(rows.slice(0, 5).map((r) => r.name)).toEqual([
+      'a',
+      'b',
+      'c',
+      'd',
+      'e',
+    ]);
     expect(rows[5]).toMatchObject({
       name: '',
       folded: 3,
@@ -101,9 +110,18 @@ describe('buildFleetRows', () => {
 
   it('picks the most severe attention item touching the group as top issue', () => {
     const critical = attentionFor('crit', [keyOf('orders')], 'critical');
-    const warning = attentionFor('warn', [keyOf('events'), keyOf('billing')], 'warning');
+    const warning = attentionFor(
+      'warn',
+      [keyOf('events'), keyOf('billing')],
+      'warning'
+    );
 
-    const rows = buildFleetRows(clusters, states, [critical, warning], 'technology');
+    const rows = buildFleetRows(
+      clusters,
+      states,
+      [critical, warning],
+      'technology'
+    );
 
     expect(rows.find((r) => r.name === 'mysql')?.topIssue?.id).toBe('crit');
     expect(rows.find((r) => r.name === 'mongodb')?.topIssue?.id).toBe('warn');

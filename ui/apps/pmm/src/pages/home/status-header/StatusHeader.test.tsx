@@ -82,7 +82,9 @@ describe('StatusHeader', () => {
   it('shows unknown for a check whose source failed', () => {
     renderHeader({ checks: { ...CHECKS, firing: null, backups: null } });
 
-    expect(screen.getByText('6 alert rules, unknown firing')).toBeInTheDocument();
+    expect(
+      screen.getByText('6 alert rules, unknown firing')
+    ).toBeInTheDocument();
     expect(screen.getByText('Backups: unknown')).toBeInTheDocument();
   });
 });

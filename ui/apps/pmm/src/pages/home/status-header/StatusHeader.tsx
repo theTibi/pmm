@@ -60,7 +60,9 @@ export const StatusHeader: FC<StatusHeaderProps> = (props) => {
                 />
                 <Typography
                   variant="body2"
-                  color={summary.counts[state] ? 'text.primary' : 'text.secondary'}
+                  color={
+                    summary.counts[state] ? 'text.primary' : 'text.secondary'
+                  }
                 >
                   {`${summary.counts[state]} ${Messages.states[state]}`}
                 </Typography>

@@ -1,5 +1,8 @@
 import { render, screen, within } from '@testing-library/react';
-import { wrapWithQueryProvider, wrapWithUpdatesProvider } from 'utils/testUtils';
+import {
+  wrapWithQueryProvider,
+  wrapWithUpdatesProvider,
+} from 'utils/testUtils';
 import { TestWrapper } from 'utils/testWrapper';
 import { PrometheusAlertRulesResponse } from 'types/alerting.types';
 import { ManagedService } from 'types/services.types';
@@ -129,7 +132,9 @@ describe('HomePage', () => {
         name: 'No known problems',
       })
     ).toBeInTheDocument();
-    expect(screen.getByText('2 alert rules, unknown firing')).toBeInTheDocument();
+    expect(
+      screen.getByText('2 alert rules, unknown firing')
+    ).toBeInTheDocument();
     expect(
       screen.getByText(
         "Couldn't load alerts; problems from them may be missing"
@@ -148,7 +153,9 @@ describe('HomePage', () => {
         name: 'No databases monitored yet',
       })
     ).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Add a database' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Add a database' })
+    ).toBeInTheDocument();
   });
 
   it('counts only staging clusters when the URL has ?environment=staging', async () => {

@@ -37,6 +37,22 @@ export const getAlertmanagerAlerts = async () => {
   return response.data;
 };
 
+// Fetch the alerts that are firing right now and not silenced or inhibited.
+export const getActiveAlerts = async () => {
+  const response = await grafanaApi.get<AlertmanagerAlert[]>(
+    '/alertmanager/grafana/api/v2/alerts',
+    {
+      params: {
+        active: true,
+        silenced: false,
+        inhibited: false,
+        unprocessed: false,
+      },
+    }
+  );
+  return response.data;
+};
+
 // Fetch the configured silences; joined to an alert's `silencedBy` ids to derive
 // how long the alert has been silenced.
 export const getAlertmanagerSilences = async () => {

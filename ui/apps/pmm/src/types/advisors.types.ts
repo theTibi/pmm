@@ -39,3 +39,21 @@ export interface CategorizedAdvisor {
 export interface ListAdvisorsResponse {
   advisors: Advisor[];
 }
+
+// Per-service count of failed checks from /v1/advisors/failedServices API
+export interface CheckResultSummary {
+  serviceId: string;
+  serviceName: string;
+  emergencyCount: number;
+  alertCount: number;
+  criticalCount: number;
+  errorCount: number;
+  warningCount: number;
+  noticeCount: number;
+  infoCount: number;
+  debugCount: number;
+}
+
+export interface ListFailedServicesResponse {
+  result?: CheckResultSummary[];
+}

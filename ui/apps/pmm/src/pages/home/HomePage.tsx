@@ -29,6 +29,12 @@ const storedFleetBy = (): FleetDimension => {
   return FLEET_DIMENSIONS.find((d) => d === stored) ?? DEFAULT_FLEET_BY;
 };
 
+// Keeps the Checked line to the services the page is showing.
+const inScope = <T extends { serviceId: string }>(
+  items: T[] | undefined,
+  ids: Set<string>
+) => items?.filter((item) => ids.has(item.serviceId));
+
 const scopeFromParams = (params: URLSearchParams): HomeScope =>
   Object.fromEntries(
     FLEET_DIMENSIONS.filter((d) => params.get(d)).map((d) => [d, params.get(d)])
@@ -55,6 +61,7 @@ export const HomePage: FC = () => {
     const opts = { includeUnattributed: !isScoped(scope) };
     const states = computeStates(clusters, input, now);
     const attention = buildAttention(clusters, input, now, opts);
+    const ids = new Set(clusters.flatMap((c) => c.services.map((s) => s.id)));
 
     return {
       now,
@@ -65,8 +72,8 @@ export const HomePage: FC = () => {
         {
           rules,
           firing: alerts && countFiringAlerts(clusters, alerts, opts),
-          failedServices,
-          artifacts,
+          failedServices: inScope(failedServices, ids),
+          artifacts: inScope(artifacts, ids),
         },
         now
       ),

@@ -7,7 +7,7 @@ import { TestWrapper } from 'utils/testWrapper';
 import { PrometheusAlertRulesResponse } from 'types/alerting.types';
 import { ManagedService } from 'types/services.types';
 import { safeLocalStorage } from 'utils/storage.utils';
-import { alert, node, svc } from './utils/test-fixtures';
+import { alert, artifact, node, summary, svc } from './utils/test-fixtures';
 import { FLEET_BY_STORAGE_KEY } from './HomePage.constants';
 import { HomePage } from './HomePage';
 
@@ -165,6 +165,23 @@ describe('HomePage', () => {
       await screen.findByText('1 of 1 instance reporting')
     ).toBeInTheDocument();
     expect(screen.getByLabelText('Environment')).toHaveValue('staging');
+  });
+
+  it('checks only Advisor results and backups of services in scope', async () => {
+    const prod = FLEET[0].serviceId;
+    mocks.listFailedServices.mockResolvedValue([
+      summary({ serviceId: prod, warningCount: 1 }),
+    ]);
+    mocks.listBackupArtifacts.mockResolvedValue([
+      artifact({ serviceId: prod, createdAt: new Date().toISOString() }),
+    ]);
+
+    renderPage('/home?environment=staging');
+
+    expect(
+      await screen.findByText('0 services with Advisor findings')
+    ).toBeInTheDocument();
+    expect(screen.getByText('No backups in the last 24 h')).toBeInTheDocument();
   });
 
   it('restores the fleet dimension from local storage', async () => {

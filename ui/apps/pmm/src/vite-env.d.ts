@@ -3,3 +3,4 @@
 
 // @fontsource packages imported for their side effects ship no type declarations.
 declare module '@fontsource/*';
+declare module '@fontsource-variable/*';

@@ -5,7 +5,8 @@ import { NavItemProps } from './SidebarNavItem.types';
 import { NavItem as NavTreeItem } from 'types/navigation.types';
 import { collapseClasses } from '@mui/material/Collapse';
 import { MemoryRouterProps } from 'react-router-dom';
-import { ThemeContextProvider, pmmThemeOptions } from '@percona/peak-ui';
+import { ThemeContextProvider } from '@percona/peak-ui';
+import { consoleThemeOptions } from 'theme';
 import { PreviewChip } from 'components/preview-chip';
 
 const TEST_NAV_TREE: NavTreeItem = {
@@ -61,7 +62,7 @@ const renderNavItem = ({
   activeItem?: NavTreeItem;
 } = {}) =>
   render(
-    <ThemeContextProvider themeOptions={pmmThemeOptions}>
+    <ThemeContextProvider themeOptions={consoleThemeOptions}>
       {wrapWithRouter(
         <SidebarNavItem
           activeItem={activeItem}

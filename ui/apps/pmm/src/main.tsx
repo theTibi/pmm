@@ -18,6 +18,9 @@ import '@fontsource/poppins/600.css';
 
 import '@fontsource/roboto-mono';
 
+import '@fontsource-variable/geist';
+import '@fontsource-variable/geist-mono';
+
 initExtensionsAuth();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

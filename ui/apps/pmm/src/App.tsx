@@ -4,11 +4,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from 'react-router-dom';
 import router from './router';
 import { SnackbarProvider, CustomContentProps } from 'notistack';
-import {
-  ThemeContextProvider,
-  pmmThemeOptions,
-  NotistackMuiSnackbar,
-} from '@percona/peak-ui';
+import { ThemeContextProvider, NotistackMuiSnackbar } from '@percona/peak-ui';
+import { consoleThemeOptions } from 'theme';
 import { ThemeClass } from 'components/theme-class';
 import type { ComponentType } from 'react';
 
@@ -23,7 +20,7 @@ const queryClient = new QueryClient({
 
 const App = () => {
   return (
-    <ThemeContextProvider themeOptions={pmmThemeOptions}>
+    <ThemeContextProvider themeOptions={consoleThemeOptions}>
       <ThemeClass />
       <LocalizationProvider dateAdapter={AdapterDateFns}>
         <SnackbarProvider

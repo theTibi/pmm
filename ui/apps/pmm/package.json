@@ -20,6 +20,8 @@
     "@date-fns/tz": "^1.4.1",
     "@emotion/react": "^11.11.4",
     "@emotion/styled": "^11.11.5",
+    "@fontsource-variable/geist": "^5.3.0",
+    "@fontsource-variable/geist-mono": "^5.3.0",
     "@fontsource/poppins": "^5.0.15",
     "@fontsource/roboto": "^5.0.14",
     "@fontsource/roboto-mono": "^5.0.18",

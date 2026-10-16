@@ -123,21 +123,21 @@ describe('NavigationProvider', () => {
       expect(atw?.icon).toBeDefined();
     });
 
-    it('sits right below Inventory for an admin, moving nothing else', () => {
+    it('sits right below Inventory in the Manage section for an admin', () => {
       const ids = renderNavTree().map((item) => item.id);
       // Only the block the section joins is pinned: asserting the whole tree
       // would break on any unrelated nav addition without telling us anything
       // about where Apps landed.
-      const block = ids.slice(ids.indexOf('inventory-divider'));
+      const block = ids.slice(ids.indexOf('section-manage'));
 
       expect(block).toEqual([
-        'inventory-divider',
+        'section-manage',
         'inventory',
         'management',
         'backups',
-        'backups-divider',
         'configuration',
         'users-and-access',
+        'nav-spacer',
         'account',
         'help',
       ]);
@@ -164,8 +164,33 @@ describe('NavigationProvider', () => {
       expect(ids).not.toContain('backups');
       expect(ids).not.toContain('configuration');
       expect(ids.indexOf('management')).toBe(
-        ids.indexOf('inventory-divider') + 1
+        ids.indexOf('section-manage') + 1
       );
+    });
+  });
+
+  describe('sections', () => {
+    it('groups the menu under Monitor, Analyze, Respond and Manage headings', () => {
+      const sections = renderNavTree()
+        .filter((item) => item.type === 'menu-section')
+        .map((item) => item.text);
+
+      expect(sections).toEqual(['Monitor', 'Analyze', 'Respond', 'Manage']);
+    });
+
+    it('puts Query Analytics under Analyze and Alerts under Respond', () => {
+      const ids = renderNavTree().map((item) => item.id);
+
+      expect(ids.indexOf('qan')).toBe(ids.indexOf('section-analyze') + 1);
+      expect(ids.indexOf('alerts')).toBe(ids.indexOf('section-respond') + 1);
+    });
+
+    it('drops a heading whose section has nothing the user can open', () => {
+      const ids = renderNavTree(TEST_USER_VIEWER, undefined, {
+        extensionsEnabled: false,
+      }).map((item) => item.id);
+
+      expect(ids).not.toContain('section-manage');
     });
   });
 

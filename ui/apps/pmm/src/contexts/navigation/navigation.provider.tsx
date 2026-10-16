@@ -14,6 +14,7 @@ import {
   addHomePage,
   addExtensionsApps,
   addOm,
+  withHeading,
 } from './navigation.utils';
 import { useUser } from 'contexts/user';
 import { useAdvisors } from 'hooks/api/useAdvisors';
@@ -22,11 +23,12 @@ import { INTERVALS_MS } from 'lib/constants';
 import { useSettings } from 'contexts/settings';
 import {
   NAV_BACKUPS,
-  NAV_DIVIDERS,
   NAV_HELP,
   NAV_INVENTORY,
   NAV_QAN,
+  NAV_SECTIONS,
   NAV_SIGN_IN,
+  NAV_SPACER,
 } from './navigation.constants';
 import { useFolders } from 'hooks/api/useFolders';
 import { useUpdates } from 'contexts/updates';
@@ -67,42 +69,47 @@ export const NavigationProvider: FC<PropsWithChildren> = ({ children }) => {
       items.push(addHighAvailability(haInfo));
     }
 
-    items.push(NAV_DIVIDERS.home);
-
     // Served by pmm-managed, so it is not gated with the PMM Extensions group --
     // gated on the settings flag alone.
     const mongoExtras =
       user?.isPMMAdmin && settings?.omEnabled ? [addOm()] : [];
 
     items.push(
-      ...addDashboardItems(currentServiceTypes, folders, user, mongoExtras)
+      ...withHeading(
+        NAV_SECTIONS.monitor,
+        addDashboardItems(currentServiceTypes, folders, user, mongoExtras)
+      )
     );
 
-    items.push(NAV_QAN);
+    const analyze = [NAV_QAN];
+
+    if (user && settings?.frontend.exploreEnabled && user.isEditor) {
+      analyze.push(
+        addExplore('grafana-metricsdrilldown-app' in settings.frontend.apps)
+      );
+    }
+
+    items.push(...withHeading(NAV_SECTIONS.analyze, analyze));
 
     if (user) {
-      if (settings?.frontend.exploreEnabled && user.isEditor) {
-        items.push(
-          addExplore('grafana-metricsdrilldown-app' in settings.frontend.apps)
-        );
-      }
-
-      items.push(
+      const respond = [
         addAlerting(
           settings?.alertingEnabled,
           settings?.frontend.unifiedAlertingEnabled,
           user
-        )
-      );
+        ),
+      ];
 
       if (user.isEditor && settings?.advisorEnabled) {
-        items.push(addAdvisors(advisors || []));
+        respond.push(addAdvisors(advisors || []));
       }
 
-      items.push(NAV_DIVIDERS.inventory);
+      items.push(...withHeading(NAV_SECTIONS.respond, respond));
+
+      const manage: NavItem[] = [];
 
       if (user.isPMMAdmin) {
-        items.push(NAV_INVENTORY);
+        manage.push(NAV_INVENTORY);
       }
 
       // PMM Extensions apps mounted as native routes, grouped under "Apps" and
@@ -117,22 +124,23 @@ export const NavigationProvider: FC<PropsWithChildren> = ({ children }) => {
       // on ExtensionsAuthGate's failure card rather than on the app. PMM Extensions navigation
       // is also withheld when the integration is disabled (PMM_ENABLE_EXTENSIONS).
       if (!user.isAnonymous && settings?.extensionsEnabled) {
-        items.push(...addExtensionsApps());
+        manage.push(...addExtensionsApps());
       }
 
       if (user.isPMMAdmin) {
         if (settings?.backupManagementEnabled) {
-          items.push(NAV_BACKUPS);
+          manage.push(NAV_BACKUPS);
         }
 
-        items.push(NAV_DIVIDERS.backups);
-
-        items.push(addConfiguration(status, versionInfo));
+        manage.push(addConfiguration(status, versionInfo));
 
         if (settings) {
-          items.push(addUsersAndAccess(settings));
+          manage.push(addUsersAndAccess(settings));
         }
       }
+
+      items.push(...withHeading(NAV_SECTIONS.manage, manage));
+      items.push(NAV_SPACER);
 
       if (isLoggedIn) {
         items.push(addAccount(user, colorMode, toggleColorMode));

@@ -219,6 +219,41 @@ describe('SidebarNavItem', () => {
     expect(screen.queryByTestId('navitem-divider-divider')).toBeInTheDocument();
   });
 
+  it('renders a section heading while the drawer is open', () => {
+    renderNavItem({
+      props: {
+        item: { id: 'section-monitor', type: 'menu-section', text: 'Monitor' },
+      },
+    });
+
+    expect(
+      screen.getByTestId('navitem-section-monitor-section')
+    ).toHaveTextContent('Monitor');
+  });
+
+  it('renders a section as a rule without text when the drawer is closed', () => {
+    renderNavItem({
+      props: {
+        item: { id: 'section-monitor', type: 'menu-section', text: 'Monitor' },
+        drawerOpen: false,
+      },
+    });
+
+    expect(
+      screen.getByTestId('navitem-section-monitor-section')
+    ).not.toHaveTextContent('Monitor');
+  });
+
+  it('renders a spacer if item has type "menu-spacer"', () => {
+    renderNavItem({
+      props: { item: { id: 'nav-spacer', type: 'menu-spacer' } },
+    });
+
+    expect(
+      screen.getByTestId('navitem-nav-spacer-spacer')
+    ).toBeInTheDocument();
+  });
+
   it('renders text item if item has type "menu-text"', () => {
     renderNavItem({
       props: {

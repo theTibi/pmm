@@ -311,6 +311,10 @@ export const addUsersAndAccess = (settings?: CombinedSettings): NavItem => {
   return { ...NAV_USERS_AND_ACCESS, children };
 };
 
+// A section heading followed by its items, or nothing when the user can open none of them.
+export const withHeading = (heading: NavItem, items: NavItem[]): NavItem[] =>
+  items.length ? [heading, ...items] : [];
+
 export const addHomePage = (preferences?: UserPreferences): NavItem => {
   if (preferences?.homeDashboardUID) {
     return {

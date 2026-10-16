@@ -45,20 +45,18 @@ import {
 } from '@percona/peak-ui';
 import { NavItem } from 'types/navigation.types';
 
-export const NAV_DIVIDERS: Record<'home' | 'inventory' | 'backups', NavItem> = {
-  home: {
-    id: 'home-divider',
-    type: 'menu-divider',
-  },
-  inventory: {
-    id: 'inventory-divider',
-    type: 'menu-divider',
-  },
-  backups: {
-    id: 'backups-divider',
-    type: 'menu-divider',
-  },
+export const NAV_SECTIONS: Record<
+  'monitor' | 'analyze' | 'respond' | 'manage',
+  NavItem
+> = {
+  monitor: { id: 'section-monitor', type: 'menu-section', text: 'Monitor' },
+  analyze: { id: 'section-analyze', type: 'menu-section', text: 'Analyze' },
+  respond: { id: 'section-respond', type: 'menu-section', text: 'Respond' },
+  manage: { id: 'section-manage', type: 'menu-section', text: 'Manage' },
 };
+
+// Pushes the items after it to the bottom of the sidebar.
+export const NAV_SPACER: NavItem = { id: 'nav-spacer', type: 'menu-spacer' };
 
 export const NAV_HOME_PAGE: NavItem = {
   id: 'home-page',

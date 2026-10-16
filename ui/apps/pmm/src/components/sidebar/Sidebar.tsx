@@ -60,7 +60,18 @@ export const Sidebar: FC = () => {
       <List
         disablePadding
         sx={[
-          { width: '100%', overflowY: 'auto', overflowX: 'hidden' },
+          {
+            width: '100%',
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '2px',
+            pb: 1.5,
+            // An open submenu must not shrink to fit the column; only the spacer flexes.
+            '& > *': { flexShrink: 0 },
+            overflowY: 'auto',
+            overflowX: 'hidden',
+          },
           {
             ['.navitem-primary-text']: {
               whiteSpace: animating ? 'nowrap' : 'normal',

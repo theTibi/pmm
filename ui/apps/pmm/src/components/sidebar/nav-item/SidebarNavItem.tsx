@@ -16,6 +16,7 @@ import ListItem from '@mui/material/ListItem';
 import List from '@mui/material/List';
 import Collapse from '@mui/material/Collapse';
 import Divider from '@mui/material/Divider';
+import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
 import NavItemIcon from './nav-item-icon/NavItemIcon';
 import NavItemTooltip from './nav-item-tooltip/NavItemTooltip';
@@ -92,8 +93,8 @@ const SidebarNavItem: FC<NavItemProps> = ({
           <Stack
             direction="row"
             alignItems="center"
-            justifyContent="space-between"
             sx={{
+              position: 'relative',
               width: level === 0 ? DRAWER_WIDTH : '100%',
             }}
             data-testid={dataTestid + '-list-item'}
@@ -109,7 +110,9 @@ const SidebarNavItem: FC<NavItemProps> = ({
               }
               selected={active}
               sx={[
-                level === 0 && styles.navItemRootCollapsible,
+                styles.row,
+                styles.rowCollapsible,
+                { flex: 1 },
                 !drawerOpen && { justifyContent: 'center' },
               ]}
               {...(linkProps as Omit<typeof linkProps, 'component'> & {
@@ -122,13 +125,14 @@ const SidebarNavItem: FC<NavItemProps> = ({
             {drawerOpen && (
               <IconButton
                 data-testid={`${dataTestid}-toggle`}
+                aria-label={`${open ? 'Collapse' : 'Expand'} ${item.text}`}
                 onClick={handleToggle}
-                sx={{
-                  mr: 1,
-                }}
+                size="small"
+                sx={styles.chevron}
               >
                 <KeyboardArrowDownIcon
                   sx={(theme) => ({
+                    fontSize: 18,
                     rotate: open ? '180deg' : 0,
                     transition: theme.transitions.create('rotate'),
                   })}
@@ -163,6 +167,30 @@ const SidebarNavItem: FC<NavItemProps> = ({
     );
   }
 
+  if (item.type === 'menu-section') {
+    return (
+      <ListItem data-testid={dataTestid + '-section'} sx={styles.section}>
+        {drawerOpen ? (
+          <Typography component="span" sx={styles.sectionText}>
+            {item.text}
+          </Typography>
+        ) : (
+          <Divider sx={styles.divider} />
+        )}
+      </ListItem>
+    );
+  }
+
+  if (item.type === 'menu-spacer') {
+    return (
+      <ListItem
+        aria-hidden="true"
+        data-testid={dataTestid + '-spacer'}
+        sx={styles.spacer}
+      />
+    );
+  }
+
   if (item.type === 'menu-divider') {
     return (
       <ListItem
@@ -185,12 +213,7 @@ const SidebarNavItem: FC<NavItemProps> = ({
         <ListItemText
           primary={item.text}
           secondary={item.secondaryText}
-          sx={[
-            styles.listItemButton,
-            styles.leafItem,
-            level === 0 && styles.navItemRoot,
-            styles.textOnly,
-          ]}
+          sx={[styles.listItemButton, styles.textOnly]}
         />
       </ListItem>
     );
@@ -217,8 +240,8 @@ const SidebarNavItem: FC<NavItemProps> = ({
           badge={item.badge ? <NavItemBadge badge={item.badge} /> : undefined}
           selected={active}
           sx={[
-            styles.leafItem,
-            level === 0 && styles.navItemRoot,
+            styles.row,
+            { flex: 1 },
             !drawerOpen && { justifyContent: 'center' },
           ]}
           {...(linkProps as Omit<typeof linkProps, 'component'> & {

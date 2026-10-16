@@ -163,9 +163,7 @@ describe('NavigationProvider', () => {
       expect(ids).not.toContain('inventory');
       expect(ids).not.toContain('backups');
       expect(ids).not.toContain('configuration');
-      expect(ids.indexOf('management')).toBe(
-        ids.indexOf('section-manage') + 1
-      );
+      expect(ids.indexOf('management')).toBe(ids.indexOf('section-manage') + 1);
     });
   });
 

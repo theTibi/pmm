@@ -249,9 +249,7 @@ describe('SidebarNavItem', () => {
       props: { item: { id: 'nav-spacer', type: 'menu-spacer' } },
     });
 
-    expect(
-      screen.getByTestId('navitem-nav-spacer-spacer')
-    ).toBeInTheDocument();
+    expect(screen.getByTestId('navitem-nav-spacer-spacer')).toBeInTheDocument();
   });
 
   it('renders text item if item has type "menu-text"', () => {

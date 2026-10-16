@@ -4,11 +4,7 @@ import { listItemButtonClasses } from '@mui/material/ListItemButton';
 import { Theme } from '@mui/material';
 import { consoleTokens, FONT_MONO } from 'theme';
 
-export const getStyles = (
-  theme: Theme,
-  drawerOpen: boolean,
-  level: number
-) => {
+export const getStyles = (theme: Theme, drawerOpen: boolean, level: number) => {
   const t = consoleTokens(theme.palette.mode);
 
   return {
@@ -51,6 +47,15 @@ export const getStyles = (
       [`&.${listItemButtonClasses.selected} .${listItemIconClasses.root}`]: {
         color: t.accent,
       },
+      // The collapsed rail shows icons only.
+      ...(!drawerOpen && {
+        flex: '0 0 40px',
+        width: 40,
+        mx: 'auto',
+        px: 0,
+        justifyContent: 'center',
+        [`.${listItemTextClasses.root}`]: { display: 'none' },
+      }),
     },
     // Leaves room for the chevron, which sits inside the row.
     // A parent shows its open child by colour only; the child carries the highlight.

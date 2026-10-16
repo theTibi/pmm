@@ -20,7 +20,7 @@ import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
 import NavItemIcon from './nav-item-icon/NavItemIcon';
 import NavItemTooltip from './nav-item-tooltip/NavItemTooltip';
-import { DRAWER_WIDTH } from '../drawer/Drawer.constants';
+import { DRAWER_CLOSED_WIDTH, DRAWER_WIDTH } from '../drawer/Drawer.constants';
 import NavItemBadge from './nav-item-badge/NavItemBadge';
 
 const SidebarNavItem: FC<NavItemProps> = ({
@@ -95,7 +95,12 @@ const SidebarNavItem: FC<NavItemProps> = ({
             alignItems="center"
             sx={{
               position: 'relative',
-              width: level === 0 ? DRAWER_WIDTH : '100%',
+              width:
+                level === 0
+                  ? drawerOpen
+                    ? DRAWER_WIDTH
+                    : DRAWER_CLOSED_WIDTH
+                  : '100%',
             }}
             data-testid={dataTestid + '-list-item'}
           >
@@ -112,8 +117,7 @@ const SidebarNavItem: FC<NavItemProps> = ({
               sx={[
                 styles.row,
                 styles.rowCollapsible,
-                { flex: 1 },
-                !drawerOpen && { justifyContent: 'center' },
+                drawerOpen && { flex: 1 },
               ]}
               {...(linkProps as Omit<typeof linkProps, 'component'> & {
                 component?: React.ElementType;
@@ -229,7 +233,12 @@ const SidebarNavItem: FC<NavItemProps> = ({
       <ListItem
         disablePadding
         sx={{
-          width: level === 0 ? DRAWER_WIDTH : '100%',
+          width:
+            level === 0
+              ? drawerOpen
+                ? DRAWER_WIDTH
+                : DRAWER_CLOSED_WIDTH
+              : '100%',
         }}
         data-testid={dataTestid + '-list-item'}
       >
@@ -239,11 +248,7 @@ const SidebarNavItem: FC<NavItemProps> = ({
           icon={item.icon ? <NavItemIcon icon={item.icon} /> : undefined}
           badge={item.badge ? <NavItemBadge badge={item.badge} /> : undefined}
           selected={active}
-          sx={[
-            styles.row,
-            { flex: 1 },
-            !drawerOpen && { justifyContent: 'center' },
-          ]}
+          sx={[styles.row, drawerOpen && { flex: 1 }]}
           {...(linkProps as Omit<typeof linkProps, 'component'> & {
             component?: React.ElementType;
           })}

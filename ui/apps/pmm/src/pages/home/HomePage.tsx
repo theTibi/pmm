@@ -1,5 +1,6 @@
 import { FC, useMemo, useState } from 'react';
-import { Alert, Stack } from '@mui/material';
+import { Alert, Box, Stack } from '@mui/material';
+import { format } from 'date-fns';
 import CircularProgress from '@mui/material/CircularProgress';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import { Page } from 'components/page';
@@ -8,6 +9,7 @@ import { useSettings } from 'contexts/settings';
 import { PMM_NEW_NAV_GRAFANA_PATH } from 'lib/constants';
 import { FleetDimension, HealthInput, HomeScope } from 'types/home.types';
 import { safeLocalStorage } from 'utils/storage.utils';
+import { useConsoleTokens } from 'theme';
 import { buildClusters } from './utils/clusters';
 import { attributeAlert, computeStates, indexClusters } from './utils/health';
 import { buildAttention, countFiringAlerts } from './utils/attention';
@@ -26,6 +28,7 @@ import { NeedsAttention } from './needs-attention/NeedsAttention';
 import { FleetHealth } from './fleet-health/FleetHealth';
 import { DEFAULT_FLEET_BY, FLEET_BY_STORAGE_KEY } from './HomePage.constants';
 import { Messages } from './HomePage.messages';
+import { monoSx } from './HomePage.styles';
 
 const storedFleetBy = (): FleetDimension => {
   const stored = safeLocalStorage.getItem(FLEET_BY_STORAGE_KEY);
@@ -57,6 +60,7 @@ export const HomePage: FC = () => {
 const HomeView: FC = () => {
   const [params, setParams] = useSearchParams();
   const [by, setBy] = useState(storedFleetBy);
+  const t = useConsoleTokens();
   const { settings } = useSettings();
   const data = useHomeData({
     advisors: !!settings?.advisorEnabled,
@@ -143,6 +147,25 @@ const HomeView: FC = () => {
     safeLocalStorage.setItem(FLEET_BY_STORAGE_KEY, next);
   };
 
+  const live = (
+    <Stack
+      direction="row"
+      alignItems="center"
+      gap={0.75}
+      sx={{ ...monoSx, fontSize: 12, color: t.textMuted }}
+    >
+      <Box
+        sx={{
+          width: 6,
+          height: 6,
+          borderRadius: '50%',
+          bgcolor: failed.length ? t.warning.main : t.healthy.text,
+        }}
+      />
+      {Messages.live(format(view.now, 'HH:mm'))}
+    </Stack>
+  );
+
   const renderContent = () => {
     if (data.isLoading) {
       return <CircularProgress sx={{ alignSelf: 'center', mt: 6 }} />;
@@ -151,12 +174,21 @@ const HomeView: FC = () => {
       return <Alert severity="error">{Messages.loadFailed}</Alert>;
     }
     return (
-      <Stack spacing={3}>
-        <ScopeBar
-          scope={view.scope}
-          options={view.options}
-          onChange={changeScope}
-        />
+      <Stack spacing={3} sx={{ pt: 1, pb: 4 }}>
+        <Stack
+          direction="row"
+          flexWrap="wrap"
+          alignItems="center"
+          justifyContent="space-between"
+          gap={2}
+        >
+          <ScopeBar
+            scope={view.scope}
+            options={view.options}
+            onChange={changeScope}
+          />
+          {live}
+        </Stack>
         <StatusHeader
           summary={view.summary}
           checks={view.checks}
@@ -166,14 +198,20 @@ const HomeView: FC = () => {
           off={off}
           incomplete={failed.length > 0 || pending.length > 0}
         />
-        <NeedsAttention items={view.attention} failed={failed} now={view.now} />
-        <FleetHealth rows={view.rows} by={by} onByChange={changeBy} />
+        <Stack spacing={2.5}>
+          <NeedsAttention
+            items={view.attention}
+            failed={failed}
+            now={view.now}
+          />
+          <FleetHealth rows={view.rows} by={by} onByChange={changeBy} />
+        </Stack>
       </Stack>
     );
   };
 
   return (
-    <Page title={Messages.pageTitle} hideTitle surface="canvas" maxWidth={1200}>
+    <Page title={Messages.pageTitle} hideTitle surface="canvas" maxWidth={1320}>
       {renderContent()}
     </Page>
   );

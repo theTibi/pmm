@@ -9,43 +9,53 @@ const OPTIONS = {
   application: [],
 };
 
+const renderBar = (
+  scope: Parameters<typeof ScopeBar>[0]['scope'],
+  onChange = vi.fn()
+) =>
+  render(
+    <TestWrapper>
+      <ScopeBar scope={scope} options={OPTIONS} onChange={onChange} />
+    </TestWrapper>
+  );
+
 describe('ScopeBar', () => {
-  it('sets and clears a scope value', () => {
+  it('sets a scope value from the pill menu', () => {
     const onChange = vi.fn();
-    const { rerender } = render(
-      <TestWrapper>
-        <ScopeBar scope={{}} options={OPTIONS} onChange={onChange} />
-      </TestWrapper>
-    );
+    renderBar({}, onChange);
 
-    fireEvent.change(screen.getByLabelText('Environment'), {
-      target: { value: 'prod' },
-    });
+    fireEvent.click(screen.getByRole('button', { name: 'Environment: all' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'prod' }));
+
     expect(onChange).toHaveBeenLastCalledWith({ environment: 'prod' });
+  });
 
-    rerender(
-      <TestWrapper>
-        <ScopeBar
-          scope={{ environment: 'prod' }}
-          options={OPTIONS}
-          onChange={onChange}
-        />
-      </TestWrapper>
-    );
-    fireEvent.change(screen.getByLabelText('Environment'), {
-      target: { value: '' },
-    });
+  it('shows the chosen value on the pill and clears it with All', () => {
+    const onChange = vi.fn();
+    renderBar({ environment: 'prod' }, onChange);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Environment: prod' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'All' }));
+
     expect(onChange).toHaveBeenLastCalledWith({});
   });
 
-  it('keeps every dimension visible and disables the empty ones', () => {
-    render(
-      <TestWrapper>
-        <ScopeBar scope={{}} options={OPTIONS} onChange={vi.fn()} />
-      </TestWrapper>
-    );
+  it('shows technologies by their display name', () => {
+    renderBar({});
 
-    expect(screen.getByLabelText('Technology')).toBeEnabled();
-    expect(screen.getByLabelText('Application')).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Technology: all' }));
+
+    expect(screen.getByRole('menuitem', { name: 'MySQL' })).toBeInTheDocument();
+  });
+
+  it('keeps every dimension visible and disables the empty ones', () => {
+    renderBar({});
+
+    expect(
+      screen.getByRole('button', { name: 'Technology: all' })
+    ).toBeEnabled();
+    expect(
+      screen.getByRole('button', { name: 'Application: all' })
+    ).toBeDisabled();
   });
 });

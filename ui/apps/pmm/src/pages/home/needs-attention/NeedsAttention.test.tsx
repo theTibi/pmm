@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react';
+import { format } from 'date-fns';
 import { AttentionItem } from 'types/home.types';
 import { TestWrapper } from 'utils/testWrapper';
 import { NeedsAttention } from './NeedsAttention';
@@ -50,25 +51,29 @@ describe('NeedsAttention', () => {
     const rows = screen.getAllByRole('listitem');
     expect(rows).toHaveLength(2);
     expect(within(rows[0]).getByText('lag on 19 clusters')).toBeInTheDocument();
+    expect(within(rows[0]).getByText('CRIT')).toBeInTheDocument();
+    expect(
+      within(rows[0]).getByText('27 instances · started together')
+    ).toBeInTheDocument();
+    expect(within(rows[0]).getByText('region: eu-west-1')).toBeInTheDocument();
     expect(
       within(rows[0]).getByText(
-        '27 instances · region: eu-west-1 · started together'
+        `28m · ${format(new Date('2026-10-15T09:40:00Z'), 'HH:mm')}`
       )
     ).toBeInTheDocument();
     expect(
-      within(rows[0]).getByText('since 28 minutes ago')
-    ).toBeInTheDocument();
-    expect(within(rows[0]).getByRole('link', { name: 'Open' })).toHaveAttribute(
-      'href',
-      '/graph/alerting/list'
-    );
+      within(rows[0]).getByRole('link', { name: 'Open alerts' })
+    ).toHaveAttribute('href', '/graph/alerting/list');
     expect(
       within(rows[1]).getByText('Backups failed on 1 cluster in the last 24 h')
     ).toBeInTheDocument();
-    expect(within(rows[1]).getByRole('link', { name: 'Open' })).toHaveAttribute(
-      'href',
-      '/graph/backup/inventory'
-    );
+    expect(within(rows[1]).getByText('WARN')).toBeInTheDocument();
+    expect(
+      within(rows[1]).getByText('1 instance · location: s3-main')
+    ).toBeInTheDocument();
+    expect(
+      within(rows[1]).getByRole('link', { name: 'View backups' })
+    ).toHaveAttribute('href', '/graph/backup/inventory');
   });
 
   it('says Nothing needs attention when there are no items', () => {

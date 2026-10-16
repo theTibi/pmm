@@ -105,6 +105,12 @@ describe('StatusHeader', () => {
     ).toBeInTheDocument();
   });
 
+  it('names the size of the scope above the title', () => {
+    renderHeader();
+
+    expect(screen.getByText('2 clusters · 3 instances')).toBeInTheDocument();
+  });
+
   it('shows unknown for a check whose source failed', () => {
     renderHeader({ checks: { ...CHECKS, firing: null, backups: null } });
 

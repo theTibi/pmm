@@ -1,5 +1,6 @@
 import { act, render, screen, within } from '@testing-library/react';
 import { Route, Routes } from 'react-router-dom';
+import { format } from 'date-fns';
 import {
   wrapWithQueryProvider,
   wrapWithSettings,
@@ -143,7 +144,7 @@ describe('HomePage', () => {
       })
     ).toBeInTheDocument();
     const row = screen.getByText('MySQL down on 1 cluster').closest('li')!;
-    expect(within(row).getByText('Critical')).toBeInTheDocument();
+    expect(within(row).getByText('CRIT')).toBeInTheDocument();
   });
 
   it('shows No known problems and unknown when alerts fail to load', async () => {
@@ -189,7 +190,9 @@ describe('HomePage', () => {
     expect(
       await screen.findByText('1 of 1 instance reporting')
     ).toBeInTheDocument();
-    expect(screen.getByLabelText('Environment')).toHaveValue('staging');
+    expect(
+      screen.getByRole('button', { name: 'Environment: staging' })
+    ).toBeInTheDocument();
   });
 
   it('checks only Advisor results and backups of services in scope', async () => {
@@ -327,15 +330,14 @@ describe('HomePage', () => {
 
     try {
       renderPage();
-      expect(
-        await screen.findByText('since 2 minutes ago')
-      ).toBeInTheDocument();
+      expect(await screen.findByText(/^2m · /)).toBeInTheDocument();
 
       vi.setSystemTime(new Date('2026-10-15T10:19:00Z'));
       await act(() => vi.advanceTimersByTimeAsync(HOME_REFRESH_MS));
 
+      const startedAt = format(new Date('2026-10-15T10:08:00Z'), 'HH:mm');
       expect(
-        await screen.findByText('since 12 minutes ago')
+        await screen.findByText(new RegExp(`^1\\dm · ${startedAt}$`))
       ).toBeInTheDocument();
     } finally {
       vi.useRealTimers();
